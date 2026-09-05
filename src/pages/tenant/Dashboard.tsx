@@ -13,6 +13,10 @@ export default function TenantDashboard() {
   const [roomNumber, setRoomNumber] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [bkash, setBkash] = useState('')
+  const [nagad, setNagad] = useState('')
+  const [bank, setBank] = useState('')
+  const [payNote, setPayNote] = useState('')
 
   useEffect(() => {
     loadData()
@@ -22,7 +26,20 @@ export default function TenantDashboard() {
     setLoading(true)
     setError('')
     try {
-      // Get my tenant record
+      const { data: settings } = await supabase
+        .from('settings')
+        .select('key, value')
+        .in('key', ['bkash_number', 'nagad_number', 'bank_account', 'payment_note'])
+      if (settings) {
+        settings.forEach((s) => {
+          const v = typeof s.value === 'string' ? s.value.replace(/^"|"$/g, '') : String(s.value ?? '')
+          if (s.key === 'bkash_number') setBkash(v)
+          if (s.key === 'nagad_number') setNagad(v)
+          if (s.key === 'bank_account') setBank(v)
+          if (s.key === 'payment_note') setPayNote(v)
+        })
+      }
+
       const { data: tenant, error: tErr } = await supabase
         .from('tenants')
         .select('id, room_id, full_name')
@@ -45,7 +62,6 @@ export default function TenantDashboard() {
         if (room) setRoomNumber(room.room_number)
       }
 
-      // Latest bill (current month preferred)
       const now = new Date()
       const thisMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
 
@@ -56,7 +72,6 @@ export default function TenantDashboard() {
         .order('billing_month', { ascending: false })
         .limit(1)
 
-      // Prefer this month if exists
       const { data: thisMonthBill } = await supabase
         .from('bills')
         .select('*')
@@ -122,6 +137,37 @@ export default function TenantDashboard() {
           <div className="empty">এখনো কোনো বিল তৈরি হয়নি</div>
         )}
 
+        {!bill && (bkash || nagad || bank) && (
+          <div className="card" style={{ marginBottom: 16, background: '#f0fdf4', border: '1.5px solid #86efac' }}>
+            <div style={{ fontWeight: 800, color: 'var(--primary)', marginBottom: 10 }}>
+              💳 টাকা পাঠাবেন এখানে
+            </div>
+            {bkash && (
+              <div className="bill-row">
+                <span>bKash</span>
+                <span style={{ fontWeight: 800 }}>{bkash}</span>
+              </div>
+            )}
+            {nagad && (
+              <div className="bill-row">
+                <span>Nagad</span>
+                <span style={{ fontWeight: 800 }}>{nagad}</span>
+              </div>
+            )}
+            {bank && (
+              <div className="bill-row">
+                <span>Bank</span>
+                <span style={{ fontWeight: 700, textAlign: 'right', maxWidth: '60%' }}>{bank}</span>
+              </div>
+            )}
+            {payNote && (
+              <div style={{ fontSize: '0.78rem', color: '#166534', marginTop: 10, lineHeight: 1.45, fontWeight: 600 }}>
+                {payNote}
+              </div>
+            )}
+          </div>
+        )}
+
         {bill && (
           <>
             <div className="bill-card">
@@ -177,6 +223,37 @@ export default function TenantDashboard() {
                 <span>৳{fmtBDT(bill.remaining_due)}</span>
               </div>
             </div>
+
+            {(bkash || nagad || bank) && (
+              <div className="card" style={{ marginBottom: 16, background: '#f0fdf4', border: '1.5px solid #86efac' }}>
+                <div style={{ fontWeight: 800, color: 'var(--primary)', marginBottom: 10 }}>
+                  💳 টাকা পাঠাবেন এখানে
+                </div>
+                {bkash && (
+                  <div className="bill-row">
+                    <span>bKash</span>
+                    <span style={{ fontWeight: 800 }}>{bkash}</span>
+                  </div>
+                )}
+                {nagad && (
+                  <div className="bill-row">
+                    <span>Nagad</span>
+                    <span style={{ fontWeight: 800 }}>{nagad}</span>
+                  </div>
+                )}
+                {bank && (
+                  <div className="bill-row">
+                    <span>Bank</span>
+                    <span style={{ fontWeight: 700, textAlign: 'right', maxWidth: '60%' }}>{bank}</span>
+                  </div>
+                )}
+                {payNote && (
+                  <div style={{ fontSize: '0.78rem', color: '#166534', marginTop: 10, lineHeight: 1.45, fontWeight: 600 }}>
+                    {payNote}
+                  </div>
+                )}
+              </div>
+            )}
 
             <button className="btn btn-primary" style={{ width: '100%', marginBottom: 20 }} onClick={handlePrint}>
               🖨️ Print / Download Statement
