@@ -5,8 +5,10 @@ import Login from './pages/Login'
 import AdminDashboard from './pages/admin/Dashboard'
 import AdminBills from './pages/admin/Bills'
 import AdminTenants from './pages/admin/Tenants'
-import TenantDashboard from './pages/tenant/Dashboard'
+import AdminReports from './pages/admin/Reports'
 import AdminReminders from './pages/admin/Reminders'
+import TenantDashboard from './pages/tenant/Dashboard'
+
 function RootRedirect() {
   const { profile, loading } = useAuth()
   if (loading) {
@@ -32,12 +34,14 @@ export default function App() {
           <Route path="/admin" element={<ProtectedRoute role="admin"><AdminDashboard /></ProtectedRoute>} />
           <Route path="/admin/bills" element={<ProtectedRoute role="admin"><AdminBills /></ProtectedRoute>} />
           <Route path="/admin/tenants" element={<ProtectedRoute role="admin"><AdminTenants /></ProtectedRoute>} />
+          <Route path="/admin/reports" element={<ProtectedRoute role="admin"><AdminReports /></ProtectedRoute>} />
+          <Route path="/admin/reminders" element={<ProtectedRoute role="admin"><AdminReminders /></ProtectedRoute>} />
           <Route path="/admin/payments" element={<ProtectedRoute role="admin"><AdminBills /></ProtectedRoute>} />
           <Route path="/admin/rooms" element={<ProtectedRoute role="admin"><AdminBills /></ProtectedRoute>} />
           <Route path="/admin/settings" element={<ProtectedRoute role="admin"><AdminBills /></ProtectedRoute>} />
 
           <Route path="/tenant" element={<ProtectedRoute role="tenant"><TenantDashboard /></ProtectedRoute>} />
-<Route path="/admin/reminders" element={<ProtectedRoute role="admin"><AdminReminders /></ProtectedRoute>} />
+
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>
