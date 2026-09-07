@@ -82,7 +82,7 @@ export default function AdminDashboard() {
       <div className="app-header">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
-            <h1>Admin Dashboard</h1>
+            <h1>Home Rent Status</h1>
             <div className="sub">Welcome, {profile?.full_name || 'Admin'}</div>
           </div>
           <button className="btn btn-outline" onClick={handleLogout} style={{ padding: '8px 12px' }}>
@@ -148,18 +148,16 @@ export default function AdminDashboard() {
         <div style={{ display: 'grid', gap: 10 }}>
           <Link to="/admin/bills" className="btn btn-primary" style={{ padding: 14 }}>📋 Monthly Bills</Link>
           <Link to="/admin/tenants" className="btn btn-primary" style={{ padding: 14 }}>👥 Tenants</Link>
-          <Link to="/admin/payments" className="btn btn-primary" style={{ padding: 14 }}>💰 Payments</Link>
-          <Link to="/admin/rooms" className="btn btn-primary" style={{ padding: 14 }}>🏠 Rooms</Link>
-          <Link to="/admin/settings" className="btn btn-ghost" style={{ padding: 14 }}>⚙️ Settings</Link>
+          <Link to="/admin/reminders" className="btn btn-primary" style={{ padding: 14 }}>🔔 Payment Reminders</Link>
+          <Link to="/admin/reports" className="btn btn-primary" style={{ padding: 14 }}>📈 Income & Expense</Link>
         </div>
       </div>
 
-      {/* Mobile bottom nav */}
       <div className="bottom-nav">
         <button className="nav-item active"><span className="icon">📊</span>Dashboard</button>
         <Link to="/admin/bills" className="nav-item"><span className="icon">📋</span>Bills</Link>
         <Link to="/admin/tenants" className="nav-item"><span className="icon">👥</span>Tenants</Link>
-        <Link to="/admin/payments" className="nav-item"><span className="icon">💰</span>Payments</Link>
+        <Link to="/admin/reminders" className="nav-item"><span className="icon">🔔</span>Remind</Link>
       </div>
     </div>
   )
