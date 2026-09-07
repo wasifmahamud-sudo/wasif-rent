@@ -6,7 +6,7 @@ import AdminDashboard from './pages/admin/Dashboard'
 import AdminBills from './pages/admin/Bills'
 import AdminTenants from './pages/admin/Tenants'
 import TenantDashboard from './pages/tenant/Dashboard'
-
+import AdminReminders from './pages/admin/Reminders'
 function RootRedirect() {
   const { profile, loading } = useAuth()
   if (loading) {
@@ -37,7 +37,7 @@ export default function App() {
           <Route path="/admin/settings" element={<ProtectedRoute role="admin"><AdminBills /></ProtectedRoute>} />
 
           <Route path="/tenant" element={<ProtectedRoute role="tenant"><TenantDashboard /></ProtectedRoute>} />
-
+<Route path="/admin/reminders" element={<ProtectedRoute role="admin"><AdminReminders /></ProtectedRoute>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>
