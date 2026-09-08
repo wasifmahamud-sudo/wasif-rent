@@ -4,11 +4,39 @@ import { supabase } from '../../lib/supabase'
 import { fmtBDT } from '../../lib/calculations'
 
 interface House { id: string; name: string }
-type HouseStat = { id: string; name: string; income: number; expense: number; due: number; net: number }
-type MonthRow = { key: string; label: string; income: number; expense: number; due: number; net: number }
-type CatRow = { category: string; amount: number }
+
+type HouseStat = {
+  id: string
+  name: string
+  rentIncome: number
+  otherIncome: number
+  houseExpense: number
+  profit: number
+  due: number
+}
+
+type MonthRow = {
+  key: string
+  label: string
+  rentIncome: number
+  otherIncome: number
+  totalIncome: number
+  houseExpense: number
+  personalExpense: number
+  netCash: number
+}
 
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
+const OTHER_INCOME_CATS = ['Shop Rent', 'Service Charge', 'Utility Collection', 'Advance/Other Income', 'Other']
+const HOUSE_EXP_CATS = ['Maintenance', 'Electricity (Common)', 'Water', 'Tax', 'Salary', 'Repair', 'Other']
+const PERSONAL_EXP_CATS = ['Food', 'Family', 'Transport', 'Mobile/Internet', 'Shopping', 'Child/Family', 'Personal', 'Other']
+
+function prevMonthKey(ym: string): string {
+  const [y, m] = ym.split('-').map(Number)
+  if (m === 1) return `${y - 1}-12`
+  return `${y}-${String(m - 1).padStart(2, '0')}`
+}
 
 export default function AdminReports() {
   const [month, setMonth] = useState(() => {
@@ -18,64 +46,130 @@ export default function AdminReports() {
   const [year, setYear] = useState(() => String(new Date().getFullYear()))
   const [houses, setHouses] = useState<House[]>([])
   const [loading, setLoading] = useState(true)
-  const [monthIncome, setMonthIncome] = useState(0)
-  const [monthExpense, setMonthExpense] = useState(0)
+  const [toast, setToast] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  const [rentInc, setRentInc] = useState(0)
+  const [otherInc, setOtherInc] = useState(0)
+  const [houseExp, setHouseExp] = useState(0)
+  const [personalExp, setPersonalExp] = useState(0)
   const [monthDue, setMonthDue] = useState(0)
-  const [yearIncome, setYearIncome] = useState(0)
-  const [yearExpense, setYearExpense] = useState(0)
+
+  const [prevRent, setPrevRent] = useState(0)
+  const [prevOther, setPrevOther] = useState(0)
+  const [prevHouse, setPrevHouse] = useState(0)
+  const [prevPersonal, setPrevPersonal] = useState(0)
+
+  const [yRent, setYRent] = useState(0)
+  const [yOther, setYOther] = useState(0)
+  const [yHouse, setYHouse] = useState(0)
+  const [yPersonal, setYPersonal] = useState(0)
   const [yearDue, setYearDue] = useState(0)
+
   const [houseStats, setHouseStats] = useState<HouseStat[]>([])
   const [monthRows, setMonthRows] = useState<MonthRow[]>([])
-  const [categories, setCategories] = useState<CatRow[]>([])
-  const [expAmount, setExpAmount] = useState('')
-  const [expCategory, setExpCategory] = useState('Maintenance')
-  const [expNote, setExpNote] = useState('')
-  const [expHouseId, setExpHouseId] = useState('')
-  const [expDate, setExpDate] = useState(() => new Date().toISOString().slice(0, 10))
-  const [saving, setSaving] = useState(false)
-  const [toast, setToast] = useState('')
-  const [recentExp, setRecentExp] = useState<any[]>([])
+  const [recentOther, setRecentOther] = useState<any[]>([])
+  const [recentHouse, setRecentHouse] = useState<any[]>([])
+  const [recentPersonal, setRecentPersonal] = useState<any[]>([])
 
-  const showToast = (m: string) => { setToast(m); setTimeout(() => setToast(''), 2500) }
+  const [oiDate, setOiDate] = useState(() => new Date().toISOString().slice(0, 10))
+  const [oiCat, setOiCat] = useState('Shop Rent')
+  const [oiAmount, setOiAmount] = useState('')
+  const [oiHouse, setOiHouse] = useState('')
+  const [oiNote, setOiNote] = useState('')
+
+  const [heDate, setHeDate] = useState(() => new Date().toISOString().slice(0, 10))
+  const [heCat, setHeCat] = useState('Maintenance')
+  const [heAmount, setHeAmount] = useState('')
+  const [heHouse, setHeHouse] = useState('')
+  const [heNote, setHeNote] = useState('')
+
+  const [peDate, setPeDate] = useState(() => new Date().toISOString().slice(0, 10))
+  const [peCat, setPeCat] = useState('Food')
+  const [peAmount, setPeAmount] = useState('')
+  const [peNote, setPeNote] = useState('')
+
+  const showToast = (m: string) => {
+    setToast(m)
+    setTimeout(() => setToast(''), 2500)
+  }
+
+  const rangeForYm = (ym: string) => {
+    const [y, m] = ym.split('-').map(Number)
+    const start = `${ym}-01`
+    const end = m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, '0')}-01`
+    return { start, end }
+  }
 
   const load = async () => {
     setLoading(true)
     try {
-      const monthStart = `${month}-01`
-      const yNum = Number(month.split('-')[0])
-      const mNum = Number(month.split('-')[1])
-      const nextMonth = mNum === 12 ? `${yNum + 1}-01-01` : `${yNum}-${String(mNum + 1).padStart(2, '0')}-01`
+      const { start: monthStart, end: nextMonth } = rangeForYm(month)
+      const prevYm = prevMonthKey(month)
+      const { start: prevStart, end: prevEnd } = rangeForYm(prevYm)
       const yearStart = `${year}-01-01`
       const yearEnd = `${Number(year) + 1}-01-01`
 
-      const [hRes, payMonth, payYear, expMonth, expYear, billsMonth, billsYear, roomsRes, tenantsRes, expYearFull, expRecent] =
-        await Promise.all([
-          supabase.from('houses').select('id, name').order('name'),
-          supabase.from('payments').select('amount, payment_date, tenant_id').gte('payment_date', monthStart).lt('payment_date', nextMonth),
-          supabase.from('payments').select('amount, payment_date, tenant_id').gte('payment_date', yearStart).lt('payment_date', yearEnd),
-          supabase.from('expenses').select('amount, expense_date, house_id, category').gte('expense_date', monthStart).lt('expense_date', nextMonth),
-          supabase.from('expenses').select('amount, expense_date, house_id, category').gte('expense_date', yearStart).lt('expense_date', yearEnd),
-          supabase.from('bills').select('remaining_due, room_id, amount_paid, billing_month').eq('billing_month', monthStart),
-          supabase.from('bills').select('remaining_due, room_id, billing_month').gte('billing_month', yearStart).lt('billing_month', yearEnd),
-          supabase.from('rooms').select('id, house_id'),
-          supabase.from('tenants').select('id, room_id'),
-          supabase.from('expenses').select('amount, expense_date, category, house_id').gte('expense_date', yearStart).lt('expense_date', yearEnd),
-          supabase.from('expenses').select('id, amount, category, note, expense_date, house_id').order('expense_date', { ascending: false }).limit(20),
-        ])
+      const [
+        hRes,
+        payM, payP, payY,
+        oiM, oiP, oiY,
+        expAllM, expAllP, expAllY,
+        billsM, billsY,
+        roomsRes, tenantsRes,
+        oiRecent, expRecent,
+      ] = await Promise.all([
+        supabase.from('houses').select('id, name').order('name'),
+        supabase.from('payments').select('amount, payment_date, tenant_id').gte('payment_date', monthStart).lt('payment_date', nextMonth),
+        supabase.from('payments').select('amount, payment_date, tenant_id').gte('payment_date', prevStart).lt('payment_date', prevEnd),
+        supabase.from('payments').select('amount, payment_date, tenant_id').gte('payment_date', yearStart).lt('payment_date', yearEnd),
+        supabase.from('other_income').select('amount, income_date, house_id, category').gte('income_date', monthStart).lt('income_date', nextMonth),
+        supabase.from('other_income').select('amount, income_date, house_id').gte('income_date', prevStart).lt('income_date', prevEnd),
+        supabase.from('other_income').select('amount, income_date, house_id, category').gte('income_date', yearStart).lt('income_date', yearEnd),
+        supabase.from('expenses').select('amount, expense_date, house_id, category, expense_scope').gte('expense_date', monthStart).lt('expense_date', nextMonth),
+        supabase.from('expenses').select('amount, expense_date, house_id, expense_scope').gte('expense_date', prevStart).lt('expense_date', prevEnd),
+        supabase.from('expenses').select('amount, expense_date, house_id, category, expense_scope').gte('expense_date', yearStart).lt('expense_date', yearEnd),
+        supabase.from('bills').select('remaining_due, room_id').eq('billing_month', monthStart),
+        supabase.from('bills').select('remaining_due, room_id, billing_month').gte('billing_month', yearStart).lt('billing_month', yearEnd),
+        supabase.from('rooms').select('id, house_id'),
+        supabase.from('tenants').select('id, room_id'),
+        supabase.from('other_income').select('id, amount, category, note, income_date, house_id').order('income_date', { ascending: false }).limit(10),
+        supabase.from('expenses').select('id, amount, category, note, expense_date, house_id, expense_scope').order('expense_date', { ascending: false }).limit(20),
+      ])
+
+      if (oiM.error && String(oiM.error.message || '').includes('other_income')) {
+        showToast('Run Other Income SQL first')
+      }
 
       const houseList = hRes.data || []
       setHouses(houseList)
-      if (!expHouseId && houseList[0]) setExpHouseId(houseList[0].id)
+      if (!oiHouse && houseList[0]) setOiHouse(houseList[0].id)
+      if (!heHouse && houseList[0]) setHeHouse(houseList[0].id)
 
-      const sum = (arr: any[] | null | undefined, key: string) =>
+      const sum = (arr: any[] | null | undefined, key = 'amount') =>
         (arr || []).reduce((s, x) => s + Number(x[key] || 0), 0)
 
-      setMonthIncome(sum(payMonth.data, 'amount'))
-      setMonthExpense(sum(expMonth.data, 'amount'))
-      setMonthDue(sum(billsMonth.data, 'remaining_due'))
-      setYearIncome(sum(payYear.data, 'amount'))
-      setYearExpense(sum(expYear.data, 'amount'))
-      setYearDue(sum(billsYear.data, 'remaining_due'))
+      const houseOnly = (arr: any[] | null | undefined) =>
+        (arr || []).filter((e) => !e.expense_scope || e.expense_scope === 'house')
+      const personalOnly = (arr: any[] | null | undefined) =>
+        (arr || []).filter((e) => e.expense_scope === 'personal')
+
+      setRentInc(sum(payM.data))
+      setOtherInc(sum(oiM.data))
+      setHouseExp(sum(houseOnly(expAllM.data)))
+      setPersonalExp(sum(personalOnly(expAllM.data)))
+      setMonthDue(sum(billsM.data, 'remaining_due'))
+
+      setPrevRent(sum(payP.data))
+      setPrevOther(sum(oiP.data))
+      setPrevHouse(sum(houseOnly(expAllP.data)))
+      setPrevPersonal(sum(personalOnly(expAllP.data)))
+
+      setYRent(sum(payY.data))
+      setYOther(sum(oiY.data))
+      setYHouse(sum(houseOnly(expAllY.data)))
+      setYPersonal(sum(personalOnly(expAllY.data)))
+      setYearDue(sum(billsY.data, 'remaining_due'))
 
       const roomHouse: Record<string, string> = {}
       ;(roomsRes.data || []).forEach((r) => { roomHouse[r.id] = r.house_id })
@@ -84,88 +178,166 @@ export default function AdminReports() {
         if (t.room_id && roomHouse[t.room_id]) tenantHouse[t.id] = roomHouse[t.room_id]
       })
 
-      const byHouse: Record<string, { income: number; expense: number; due: number }> = {}
-      houseList.forEach((h) => { byHouse[h.id] = { income: 0, expense: 0, due: 0 } })
-      byHouse[''] = { income: 0, expense: 0, due: 0 }
+      const byH: Record<string, { rent: number; other: number; exp: number; due: number }> = {}
+      houseList.forEach((h) => { byH[h.id] = { rent: 0, other: 0, exp: 0, due: 0 } })
 
-      ;(payMonth.data || []).forEach((p) => {
-        const hid = tenantHouse[p.tenant_id] || ''
-        if (!byHouse[hid]) byHouse[hid] = { income: 0, expense: 0, due: 0 }
-        byHouse[hid].income += Number(p.amount || 0)
+      ;(payM.data || []).forEach((p) => {
+        const hid = tenantHouse[p.tenant_id]
+        if (hid && byH[hid]) byH[hid].rent += Number(p.amount || 0)
       })
-      ;(expMonth.data || []).forEach((e) => {
-        const hid = e.house_id || ''
-        if (!byHouse[hid]) byHouse[hid] = { income: 0, expense: 0, due: 0 }
-        byHouse[hid].expense += Number(e.amount || 0)
+      ;(oiM.data || []).forEach((o) => {
+        if (o.house_id && byH[o.house_id]) byH[o.house_id].other += Number(o.amount || 0)
       })
-      ;(billsMonth.data || []).forEach((b) => {
-        const hid = roomHouse[b.room_id] || ''
-        if (!byHouse[hid]) byHouse[hid] = { income: 0, expense: 0, due: 0 }
-        byHouse[hid].due += Number(b.remaining_due || 0)
+      houseOnly(expAllM.data).forEach((e) => {
+        if (e.house_id && byH[e.house_id]) byH[e.house_id].exp += Number(e.amount || 0)
+      })
+      ;(billsM.data || []).forEach((b) => {
+        const hid = roomHouse[b.room_id]
+        if (hid && byH[hid]) byH[hid].due += Number(b.remaining_due || 0)
       })
 
-      const houseRows: HouseStat[] = houseList.map((h) => {
-        const v = byHouse[h.id] || { income: 0, expense: 0, due: 0 }
-        return { id: h.id, name: h.name, income: v.income, expense: v.expense, due: v.due, net: v.income - v.expense }
-      })
-      if (byHouse['']?.expense > 0) {
-        houseRows.push({ id: 'general', name: 'General (no house)', income: 0, expense: byHouse[''].expense, due: 0, net: -byHouse[''].expense })
-      }
-      setHouseStats(houseRows)
+      setHouseStats(
+        houseList.map((h) => {
+          const v = byH[h.id]
+          const income = v.rent + v.other
+          return {
+            id: h.id,
+            name: h.name,
+            rentIncome: v.rent,
+            otherIncome: v.other,
+            houseExpense: v.exp,
+            profit: income - v.exp,
+            due: v.due,
+          }
+        })
+      )
 
-      const monthly: MonthRow[] = []
+      const rows: MonthRow[] = []
       for (let mi = 1; mi <= 12; mi++) {
         const key = `${year}-${String(mi).padStart(2, '0')}`
-        const start = `${key}-01`
-        const end = mi === 12 ? `${Number(year) + 1}-01-01` : `${year}-${String(mi + 1).padStart(2, '0')}-01`
-        const inc = (payYear.data || []).filter((p) => p.payment_date >= start && p.payment_date < end).reduce((s, p) => s + Number(p.amount || 0), 0)
-        const exp = (expYearFull.data || []).filter((e) => e.expense_date >= start && e.expense_date < end).reduce((s, e) => s + Number(e.amount || 0), 0)
-        const due = (billsYear.data || []).filter((b) => b.billing_month === start).reduce((s, b) => s + Number(b.remaining_due || 0), 0)
-        monthly.push({ key, label: MONTH_NAMES[mi - 1], income: inc, expense: exp, due, net: inc - exp })
+        const { start, end } = rangeForYm(key)
+        const rInc = (payY.data || []).filter((p) => p.payment_date >= start && p.payment_date < end).reduce((s, p) => s + Number(p.amount || 0), 0)
+        const oInc = (oiY.data || []).filter((o) => o.income_date >= start && o.income_date < end).reduce((s, o) => s + Number(o.amount || 0), 0)
+        const hExp = houseOnly(expAllY.data).filter((e) => e.expense_date >= start && e.expense_date < end).reduce((s, e) => s + Number(e.amount || 0), 0)
+        const pExp = personalOnly(expAllY.data).filter((e) => e.expense_date >= start && e.expense_date < end).reduce((s, e) => s + Number(e.amount || 0), 0)
+        const total = rInc + oInc
+        rows.push({
+          key,
+          label: MONTH_NAMES[mi - 1],
+          rentIncome: rInc,
+          otherIncome: oInc,
+          totalIncome: total,
+          houseExpense: hExp,
+          personalExpense: pExp,
+          netCash: total - hExp - pExp,
+        })
       }
-      setMonthRows(monthly)
+      setMonthRows(rows)
 
-      const catMap: Record<string, number> = {}
-      ;(expYearFull.data || []).forEach((e) => {
-        const c = e.category || 'Other'
-        catMap[c] = (catMap[c] || 0) + Number(e.amount || 0)
-      })
-      setCategories(Object.entries(catMap).map(([category, amount]) => ({ category, amount })).sort((a, b) => b.amount - a.amount))
-      setRecentExp(expRecent.data || [])
+      setRecentOther(oiRecent.data || [])
+      const allExp = expRecent.data || []
+      setRecentHouse(allExp.filter((e) => !e.expense_scope || e.expense_scope === 'house'))
+      setRecentPersonal(allExp.filter((e) => e.expense_scope === 'personal'))
     } catch (e) {
       console.error(e)
-      showToast('Report load failed')
+      showToast('Load failed')
     } finally {
       setLoading(false)
     }
   }
 
-  useEffect(() => { load() }, [month, year])
+  useEffect(() => {
+    load()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [month, year])
 
-  const addExpense = async () => {
-    const amount = Number(expAmount)
+  const addOtherIncome = async () => {
+    const amount = Number(oiAmount)
     if (!amount || amount <= 0) { showToast('সঠিক অ্যামাউন্ট দিন'); return }
     setSaving(true)
     try {
-      const { error } = await supabase.from('expenses').insert({
-        amount, category: expCategory, note: expNote || null, expense_date: expDate, house_id: expHouseId || null,
+      const { error } = await supabase.from('other_income').insert({
+        amount,
+        category: oiCat,
+        note: oiNote || null,
+        income_date: oiDate,
+        house_id: oiHouse || null,
       })
       if (error) throw error
-      showToast('খরচ সেভ হয়েছে')
-      setExpAmount('')
-      setExpNote('')
+      showToast('Other Income saved')
+      setOiAmount('')
+      setOiNote('')
       await load()
     } catch (e: any) {
-      showToast(e.message || 'সেভ ব্যর্থ')
+      showToast(e.message || 'Failed — run SQL if table missing')
     } finally {
       setSaving(false)
     }
   }
 
-  const netMonth = monthIncome - monthExpense
-  const netYear = yearIncome - yearExpense
-  const maxMonthBar = Math.max(1, ...monthRows.map((r) => Math.max(r.income, r.expense)))
-  const maxCat = Math.max(1, ...categories.map((c) => c.amount))
+  const addHouseExpense = async () => {
+    const amount = Number(heAmount)
+    if (!amount || amount <= 0) { showToast('সঠিক অ্যামাউন্ট দিন'); return }
+    setSaving(true)
+    try {
+      const { error } = await supabase.from('expenses').insert({
+        amount,
+        category: heCat,
+        note: heNote || null,
+        expense_date: heDate,
+        house_id: heHouse || null,
+        expense_scope: 'house',
+      })
+      if (error) throw error
+      showToast('House Expense saved')
+      setHeAmount('')
+      setHeNote('')
+      await load()
+    } catch (e: any) {
+      showToast(e.message || 'Save failed')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const addPersonalExpense = async () => {
+    const amount = Number(peAmount)
+    if (!amount || amount <= 0) { showToast('সঠিক অ্যামাউন্ট দিন'); return }
+    setSaving(true)
+    try {
+      const { error } = await supabase.from('expenses').insert({
+        amount,
+        category: peCat,
+        note: peNote || null,
+        expense_date: peDate,
+        house_id: null,
+        expense_scope: 'personal',
+      })
+      if (error) throw error
+      showToast('Personal Expense saved')
+      setPeAmount('')
+      setPeNote('')
+      await load()
+    } catch (e: any) {
+      showToast(e.message || 'Save failed — run expense_scope SQL')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const totalIncome = rentInc + otherInc
+  const houseProfit = totalIncome - houseExp
+  const netCash = totalIncome - houseExp - personalExp
+
+  const prevTotal = prevRent + prevOther
+  const prevProfit = prevTotal - prevHouse
+  const prevNet = prevTotal - prevHouse - prevPersonal
+
+  const yTotal = yRent + yOther
+  const yProfit = yTotal - yHouse
+  const yNet = yTotal - yHouse - yPersonal
+
+  const maxBar = Math.max(1, ...monthRows.map((r) => Math.max(r.totalIncome, r.houseExpense, r.personalExpense)))
 
   return (
     <div>
@@ -173,7 +345,7 @@ export default function AdminReports() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
           <div>
             <h1>Income & Expense</h1>
-            <div className="sub">Collected payments · BDT</div>
+            <div className="sub">Rent · Other Income · House · Personal</div>
           </div>
           <Link to="/admin" className="btn btn-outline" style={{ padding: '8px 12px' }}>← Dashboard</Link>
         </div>
@@ -181,11 +353,23 @@ export default function AdminReports() {
 
       <div className="page-content">
         <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
-          <input type="month" value={month} onChange={(e) => { setMonth(e.target.value); if (e.target.value) setYear(e.target.value.slice(0, 4)) }}
-            style={{ flex: 1, minWidth: 140, padding: '10px 12px', borderRadius: 10, border: '1.5px solid var(--border)', fontWeight: 600 }} />
-          <select value={year} onChange={(e) => setYear(e.target.value)}
-            style={{ flex: 1, minWidth: 100, padding: '10px 12px', borderRadius: 10, border: '1.5px solid var(--border)', fontWeight: 600 }}>
-            {[2024, 2025, 2026, 2027, 2028].map((y) => <option key={y} value={y}>{y}</option>)}
+          <input
+            type="month"
+            value={month}
+            onChange={(e) => {
+              setMonth(e.target.value)
+              if (e.target.value) setYear(e.target.value.slice(0, 4))
+            }}
+            style={{ flex: 1, minWidth: 140, padding: '10px 12px', borderRadius: 10, border: '1.5px solid var(--border)', fontWeight: 600 }}
+          />
+          <select
+            value={year}
+            onChange={(e) => setYear(e.target.value)}
+            style={{ flex: 1, minWidth: 100, padding: '10px 12px', borderRadius: 10, border: '1.5px solid var(--border)', fontWeight: 600 }}
+          >
+            {[2024, 2025, 2026, 2027, 2028].map((y) => (
+              <option key={y} value={y}>{y}</option>
+            ))}
           </select>
         </div>
 
@@ -193,108 +377,181 @@ export default function AdminReports() {
           <div className="empty"><div className="spinner" style={{ margin: '0 auto 12px' }} />লোড হচ্ছে...</div>
         ) : (
           <>
-            <div style={{ fontWeight: 800, color: 'var(--primary)', marginBottom: 8 }}>This month ({month})</div>
+            <div style={{ fontWeight: 800, color: 'var(--primary)', marginBottom: 8 }}>Current month ({month})</div>
             <div className="grid-2" style={{ marginBottom: 12 }}>
-              <div className="sum-card green"><div className="label">Income</div><div className="value">৳{fmtBDT(monthIncome)}</div></div>
-              <div className="sum-card due"><div className="label">Expense</div><div className="value">৳{fmtBDT(monthExpense)}</div></div>
-              <div className="sum-card blue"><div className="label">Net</div><div className="value" style={{ color: netMonth >= 0 ? 'var(--accent)' : 'var(--danger)' }}>৳{fmtBDT(netMonth)}</div></div>
-              <div className="sum-card orange"><div className="label">Due</div><div className="value">৳{fmtBDT(monthDue)}</div></div>
+              <div className="sum-card green"><div className="label">Rent Income</div><div className="value">৳{fmtBDT(rentInc)}</div></div>
+              <div className="sum-card blue"><div className="label">Other Income</div><div className="value">৳{fmtBDT(otherInc)}</div></div>
+              <div className="sum-card green"><div className="label">Total Income</div><div className="value">৳{fmtBDT(totalIncome)}</div></div>
+              <div className="sum-card due"><div className="label">House Expense</div><div className="value">৳{fmtBDT(houseExp)}</div></div>
+              <div className="sum-card orange"><div className="label">House Profit</div><div className="value" style={{ color: houseProfit >= 0 ? 'var(--accent)' : 'var(--danger)' }}>৳{fmtBDT(houseProfit)}</div></div>
+              <div className="sum-card due"><div className="label">Personal Expense</div><div className="value">৳{fmtBDT(personalExp)}</div></div>
+              <div className="sum-card blue"><div className="label">Net Cash Flow</div><div className="value" style={{ color: netCash >= 0 ? 'var(--accent)' : 'var(--danger)' }}>৳{fmtBDT(netCash)}</div></div>
+              <div className="sum-card orange"><div className="label">Due (bills)</div><div className="value">৳{fmtBDT(monthDue)}</div></div>
+            </div>
+
+            <div style={{ fontWeight: 800, color: 'var(--primary)', marginBottom: 8 }}>Previous month ({prevMonthKey(month)})</div>
+            <div className="grid-2" style={{ marginBottom: 12 }}>
+              <div className="sum-card"><div className="label">Total Income</div><div className="value">৳{fmtBDT(prevTotal)}</div></div>
+              <div className="sum-card"><div className="label">House Expense</div><div className="value">৳{fmtBDT(prevHouse)}</div></div>
+              <div className="sum-card"><div className="label">House Profit</div><div className="value">৳{fmtBDT(prevProfit)}</div></div>
+              <div className="sum-card"><div className="label">Net Cash</div><div className="value">৳{fmtBDT(prevNet)}</div></div>
             </div>
 
             <div style={{ fontWeight: 800, color: 'var(--primary)', marginBottom: 8 }}>Year {year}</div>
             <div className="grid-2" style={{ marginBottom: 16 }}>
-              <div className="sum-card green"><div className="label">Year income</div><div className="value">৳{fmtBDT(yearIncome)}</div></div>
-              <div className="sum-card due"><div className="label">Year expense</div><div className="value">৳{fmtBDT(yearExpense)}</div></div>
-              <div className="sum-card blue"><div className="label">Year net</div><div className="value" style={{ color: netYear >= 0 ? 'var(--accent)' : 'var(--danger)' }}>৳{fmtBDT(netYear)}</div></div>
-              <div className="sum-card orange"><div className="label">Year due</div><div className="value">৳{fmtBDT(yearDue)}</div></div>
+              <div className="sum-card green"><div className="label">Rent Income</div><div className="value">৳{fmtBDT(yRent)}</div></div>
+              <div className="sum-card blue"><div className="label">Other Income</div><div className="value">৳{fmtBDT(yOther)}</div></div>
+              <div className="sum-card green"><div className="label">Total Income</div><div className="value">৳{fmtBDT(yTotal)}</div></div>
+              <div className="sum-card due"><div className="label">House Expense</div><div className="value">৳{fmtBDT(yHouse)}</div></div>
+              <div className="sum-card orange"><div className="label">House Profit</div><div className="value">৳{fmtBDT(yProfit)}</div></div>
+              <div className="sum-card due"><div className="label">Personal Expense</div><div className="value">৳{fmtBDT(yPersonal)}</div></div>
+              <div className="sum-card blue"><div className="label">Net Cash Flow</div><div className="value">৳{fmtBDT(yNet)}</div></div>
+              <div className="sum-card orange"><div className="label">Year Due</div><div className="value">৳{fmtBDT(yearDue)}</div></div>
             </div>
 
             <div className="card" style={{ marginBottom: 16 }}>
               <div style={{ fontWeight: 800, marginBottom: 12, color: 'var(--primary)' }}>{year} month-by-month</div>
               {monthRows.map((r) => (
                 <div key={r.key} style={{ marginBottom: 10 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', marginBottom: 3 }}>
-                    <span style={{ fontWeight: 700, width: 36 }}>{r.label}</span>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', marginBottom: 3, flexWrap: 'wrap', gap: 4 }}>
+                    <span style={{ fontWeight: 700, width: 32 }}>{r.label}</span>
                     <span style={{ color: 'var(--muted)' }}>
-                      <span style={{ color: 'var(--accent)', fontWeight: 600 }}>৳{fmtBDT(r.income)}</span>
-                      {' / '}<span style={{ color: '#c0392b' }}>৳{fmtBDT(r.expense)}</span>
-                      {' · Net '}<span style={{ fontWeight: 700, color: r.net >= 0 ? 'var(--accent)' : '#c0392b' }}>৳{fmtBDT(r.net)}</span>
+                      Inc ৳{fmtBDT(r.totalIncome)} · H.Exp ৳{fmtBDT(r.houseExpense)} · P.Exp ৳{fmtBDT(r.personalExpense)} ·{' '}
+                      <strong style={{ color: r.netCash >= 0 ? 'var(--accent)' : '#c0392b' }}>Net ৳{fmtBDT(r.netCash)}</strong>
                     </span>
                   </div>
-                  <div style={{ display: 'flex', gap: 4, height: 8 }}>
-                    <div style={{ width: `${(r.income / maxMonthBar) * 100}%`, background: 'var(--accent)', borderRadius: 4, minWidth: r.income > 0 ? 4 : 0 }} />
-                    <div style={{ width: `${(r.expense / maxMonthBar) * 100}%`, background: '#e17055', borderRadius: 4, minWidth: r.expense > 0 ? 4 : 0 }} />
+                  <div style={{ display: 'flex', gap: 3, height: 8 }}>
+                    <div style={{ width: `${(r.totalIncome / maxBar) * 100}%`, background: 'var(--accent)', borderRadius: 4, minWidth: r.totalIncome > 0 ? 3 : 0 }} />
+                    <div style={{ width: `${(r.houseExpense / maxBar) * 100}%`, background: '#e17055', borderRadius: 4, minWidth: r.houseExpense > 0 ? 3 : 0 }} />
+                    <div style={{ width: `${(r.personalExpense / maxBar) * 100}%`, background: '#6c5ce7', borderRadius: 4, minWidth: r.personalExpense > 0 ? 3 : 0 }} />
                   </div>
                 </div>
               ))}
+              <div style={{ display: 'flex', gap: 12, marginTop: 10, fontSize: '0.7rem', color: 'var(--muted)', flexWrap: 'wrap' }}>
+                <span><span style={{ color: 'var(--accent)' }}>■</span> Income</span>
+                <span><span style={{ color: '#e17055' }}>■</span> House Exp</span>
+                <span><span style={{ color: '#6c5ce7' }}>■</span> Personal</span>
+              </div>
             </div>
 
             <div className="card" style={{ marginBottom: 16 }}>
               <div style={{ fontWeight: 800, marginBottom: 10, color: 'var(--primary)' }}>House-wise ({month})</div>
+              <div style={{ fontSize: '0.72rem', color: 'var(--muted)', marginBottom: 8 }}>Personal expense is NOT included here</div>
               {houseStats.map((h) => (
                 <div key={h.id} style={{ borderBottom: '1px solid var(--border)', padding: '10px 0' }}>
                   <div style={{ fontWeight: 800, marginBottom: 6 }}>{h.name}</div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, fontSize: '0.78rem' }}>
-                    <div>Income: <strong style={{ color: 'var(--accent)' }}>৳{fmtBDT(h.income)}</strong></div>
-                    <div>Expense: <strong style={{ color: '#c0392b' }}>৳{fmtBDT(h.expense)}</strong></div>
-                    <div>Net: <strong style={{ color: h.net >= 0 ? 'var(--accent)' : '#c0392b' }}>৳{fmtBDT(h.net)}</strong></div>
+                    <div>Rent: <strong style={{ color: 'var(--accent)' }}>৳{fmtBDT(h.rentIncome)}</strong></div>
+                    <div>Other: <strong>৳{fmtBDT(h.otherIncome)}</strong></div>
+                    <div>Expense: <strong style={{ color: '#c0392b' }}>৳{fmtBDT(h.houseExpense)}</strong></div>
+                    <div>Profit: <strong style={{ color: h.profit >= 0 ? 'var(--accent)' : '#c0392b' }}>৳{fmtBDT(h.profit)}</strong></div>
                     <div>Due: <strong style={{ color: h.due > 0 ? '#c0392b' : 'var(--muted)' }}>৳{fmtBDT(h.due)}</strong></div>
                   </div>
                 </div>
               ))}
             </div>
 
+            <div style={{ fontWeight: 800, color: 'var(--primary)', marginBottom: 8, fontSize: '1rem' }}>Income</div>
+
             <div className="card" style={{ marginBottom: 16 }}>
-              <div style={{ fontWeight: 800, marginBottom: 12, color: 'var(--primary)' }}>Expense by category ({year})</div>
-              {categories.length === 0 ? (
-                <div className="empty" style={{ padding: 16 }}>No expenses this year</div>
-              ) : categories.map((c) => (
-                <div key={c.category} style={{ marginBottom: 10 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', marginBottom: 4 }}>
-                    <span style={{ fontWeight: 700 }}>{c.category}</span>
-                    <span style={{ fontWeight: 800 }}>৳{fmtBDT(c.amount)}</span>
+              <div style={{ fontWeight: 800, marginBottom: 12, color: 'var(--primary)' }}>+ Add Other Income</div>
+              <div className="field"><label>Date</label>
+                <input type="date" value={oiDate} onChange={(e) => setOiDate(e.target.value)} /></div>
+              <div className="field"><label>Category</label>
+                <select value={oiCat} onChange={(e) => setOiCat(e.target.value)}>
+                  {OTHER_INCOME_CATS.map((c) => <option key={c}>{c}</option>)}
+                </select></div>
+              <div className="field"><label>Amount (Tk)</label>
+                <input type="number" value={oiAmount} onChange={(e) => setOiAmount(e.target.value)} inputMode="numeric" /></div>
+              <div className="field"><label>House (optional)</label>
+                <select value={oiHouse} onChange={(e) => setOiHouse(e.target.value)}>
+                  <option value="">None / General</option>
+                  {houses.map((h) => <option key={h.id} value={h.id}>{h.name}</option>)}
+                </select></div>
+              <div className="field"><label>Note</label>
+                <input type="text" value={oiNote} onChange={(e) => setOiNote(e.target.value)} placeholder="optional" /></div>
+              <button className="btn btn-primary" style={{ width: '100%' }} onClick={addOtherIncome} disabled={saving}>
+                {saving ? 'Saving...' : 'Save Other Income'}
+              </button>
+            </div>
+
+            <div style={{ fontWeight: 800, color: 'var(--primary)', marginBottom: 8, fontSize: '1rem' }}>Expense</div>
+
+            <div className="card" style={{ marginBottom: 16 }}>
+              <div style={{ fontWeight: 800, marginBottom: 12, color: 'var(--primary)' }}>+ Add House Expense</div>
+              <div className="field"><label>Date</label>
+                <input type="date" value={heDate} onChange={(e) => setHeDate(e.target.value)} /></div>
+              <div className="field"><label>Category</label>
+                <select value={heCat} onChange={(e) => setHeCat(e.target.value)}>
+                  {HOUSE_EXP_CATS.map((c) => <option key={c}>{c}</option>)}
+                </select></div>
+              <div className="field"><label>Amount (Tk)</label>
+                <input type="number" value={heAmount} onChange={(e) => setHeAmount(e.target.value)} inputMode="numeric" /></div>
+              <div className="field"><label>House (optional)</label>
+                <select value={heHouse} onChange={(e) => setHeHouse(e.target.value)}>
+                  <option value="">All / General</option>
+                  {houses.map((h) => <option key={h.id} value={h.id}>{h.name}</option>)}
+                </select></div>
+              <div className="field"><label>Note</label>
+                <input type="text" value={heNote} onChange={(e) => setHeNote(e.target.value)} placeholder="optional" /></div>
+              <button className="btn btn-primary" style={{ width: '100%' }} onClick={addHouseExpense} disabled={saving}>
+                {saving ? 'Saving...' : 'Save House Expense'}
+              </button>
+            </div>
+
+            <div className="card" style={{ marginBottom: 16 }}>
+              <div style={{ fontWeight: 800, marginBottom: 12, color: 'var(--primary)' }}>+ Add Personal Expense</div>
+              <div style={{ fontSize: '0.72rem', color: 'var(--muted)', marginBottom: 8 }}>Not counted in House Profit</div>
+              <div className="field"><label>Date</label>
+                <input type="date" value={peDate} onChange={(e) => setPeDate(e.target.value)} /></div>
+              <div className="field"><label>Category</label>
+                <select value={peCat} onChange={(e) => setPeCat(e.target.value)}>
+                  {PERSONAL_EXP_CATS.map((c) => <option key={c}>{c}</option>)}
+                </select></div>
+              <div className="field"><label>Amount (Tk)</label>
+                <input type="number" value={peAmount} onChange={(e) => setPeAmount(e.target.value)} inputMode="numeric" /></div>
+              <div className="field"><label>Note</label>
+                <input type="text" value={peNote} onChange={(e) => setPeNote(e.target.value)} placeholder="optional" /></div>
+              <button className="btn btn-primary" style={{ width: '100%' }} onClick={addPersonalExpense} disabled={saving}>
+                {saving ? 'Saving...' : 'Save Personal Expense'}
+              </button>
+            </div>
+
+            <div className="card" style={{ marginBottom: 12 }}>
+              <div style={{ fontWeight: 800, marginBottom: 8, color: 'var(--primary)' }}>Recent Other Income</div>
+              {recentOther.length === 0 ? <div className="empty" style={{ padding: 12 }}>None yet</div> : recentOther.map((e) => (
+                <div key={e.id} className="bill-row" style={{ padding: '8px 0' }}>
+                  <div>
+                    <div style={{ fontWeight: 700 }}>{e.category}</div>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--muted)' }}>{e.income_date}{e.note ? ` · ${e.note}` : ''}</div>
                   </div>
-                  <div style={{ height: 10, background: '#e5e7eb', borderRadius: 20, overflow: 'hidden' }}>
-                    <div style={{ height: '100%', width: `${(c.amount / maxCat) * 100}%`, background: 'linear-gradient(90deg, #e17055, #d63031)', borderRadius: 20 }} />
-                  </div>
+                  <div style={{ fontWeight: 800, color: 'var(--accent)' }}>৳{fmtBDT(e.amount)}</div>
                 </div>
               ))}
             </div>
 
-            <div className="card" style={{ marginBottom: 16 }}>
-              <div style={{ fontWeight: 800, marginBottom: 12, color: 'var(--primary)' }}>+ Add Expense</div>
-              <div className="field"><label>Amount (Tk)</label>
-                <input type="number" value={expAmount} onChange={(e) => setExpAmount(e.target.value)} inputMode="numeric" /></div>
-              <div className="field"><label>Category</label>
-                <select value={expCategory} onChange={(e) => setExpCategory(e.target.value)}>
-                  <option>Maintenance</option><option>Electricity (Common)</option><option>Water</option>
-                  <option>Tax</option><option>Salary</option><option>Repair</option><option>Other</option>
-                </select></div>
-              <div className="field"><label>House (optional)</label>
-                <select value={expHouseId} onChange={(e) => setExpHouseId(e.target.value)}>
-                  <option value="">All / General</option>
-                  {houses.map((h) => <option key={h.id} value={h.id}>{h.name}</option>)}
-                </select></div>
-              <div className="field"><label>Date</label>
-                <input type="date" value={expDate} onChange={(e) => setExpDate(e.target.value)} /></div>
-              <div className="field"><label>Note</label>
-                <input type="text" value={expNote} onChange={(e) => setExpNote(e.target.value)} placeholder="optional" /></div>
-              <button className="btn btn-primary" style={{ width: '100%' }} onClick={addExpense} disabled={saving}>
-                {saving ? 'Saving...' : 'Save Expense'}
-              </button>
-            </div>
-
-            <div className="card" style={{ marginBottom: 20 }}>
-              <div style={{ fontWeight: 800, marginBottom: 10, color: 'var(--primary)' }}>Recent expenses</div>
-              {recentExp.length === 0 ? (
-                <div className="empty" style={{ padding: 16 }}>No expenses yet</div>
-              ) : recentExp.map((e) => (
+            <div className="card" style={{ marginBottom: 12 }}>
+              <div style={{ fontWeight: 800, marginBottom: 8, color: 'var(--primary)' }}>Recent House Expenses</div>
+              {recentHouse.length === 0 ? <div className="empty" style={{ padding: 12 }}>None yet</div> : recentHouse.map((e) => (
                 <div key={e.id} className="bill-row" style={{ padding: '8px 0' }}>
                   <div>
                     <div style={{ fontWeight: 700 }}>{e.category}</div>
                     <div style={{ fontSize: '0.72rem', color: 'var(--muted)' }}>{e.expense_date}{e.note ? ` · ${e.note}` : ''}</div>
                   </div>
                   <div style={{ fontWeight: 800, color: '#c0392b' }}>৳{fmtBDT(e.amount)}</div>
+                </div>
+              ))}
+            </div>
+
+            <div className="card" style={{ marginBottom: 20 }}>
+              <div style={{ fontWeight: 800, marginBottom: 8, color: 'var(--primary)' }}>Recent Personal Expenses</div>
+              {recentPersonal.length === 0 ? <div className="empty" style={{ padding: 12 }}>None yet</div> : recentPersonal.map((e) => (
+                <div key={e.id} className="bill-row" style={{ padding: '8px 0' }}>
+                  <div>
+                    <div style={{ fontWeight: 700 }}>{e.category}</div>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--muted)' }}>{e.expense_date}{e.note ? ` · ${e.note}` : ''}</div>
+                  </div>
+                  <div style={{ fontWeight: 800, color: '#6c5ce7' }}>৳{fmtBDT(e.amount)}</div>
                 </div>
               ))}
             </div>
