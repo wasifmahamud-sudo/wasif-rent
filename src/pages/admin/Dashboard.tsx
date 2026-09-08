@@ -1,78 +1,164 @@
-import React, { useState } from 'react';
-import { Sidebar } from '../../components/Sidebar';
-import { AiAssistant } from '../../components/AiAssistant';
+import { useEffect, useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
+import { useAuth } from '../../contexts/AuthContext'
+import { supabase } from '../../lib/supabase'
+import { fmtBDT } from '../../lib/calculations'
 
-// Existing Pages
-import Bills from './Bills';
-import Tenants from './Tenants';
-import Reminders from './Reminders';
-import Reports from './Reports';
+interface Stats {
+  tenants: number
+  rooms: number
+  totalRent: number
+  totalEC: number
+  totalCollected: number
+  totalDue: number
+  unpaidCount: number
+}
 
 export default function AdminDashboard() {
-  const [activeTab, setActiveTab] = useState('dashboard');
-  const [collapsed, setCollapsed] = useState(false);
-  const [aiOpen, setAiOpen] = useState(false);
+  const { profile, signOut } = useAuth()
+  const navigate = useNavigate()
+  const [stats, setStats] = useState<Stats>({
+    tenants: 0, rooms: 0, totalRent: 0, totalEC: 0,
+    totalCollected: 0, totalDue: 0, unpaidCount: 0,
+  })
+  const [loading, setLoading] = useState(true)
+  const [month, setMonth] = useState(() => {
+    const d = new Date()
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`
+  })
+
+  useEffect(() => {
+    loadStats()
+  }, [month])
+
+  async function loadStats() {
+    setLoading(true)
+    try {
+      const [tenantsRes, roomsRes, billsRes] = await Promise.all([
+        supabase.from('tenants').select('id', { count: 'exact', head: true }).eq('active', true),
+        supabase.from('rooms').select('id', { count: 'exact', head: true }),
+        supabase.from('bills').select('rent_amount, electricity_amount, amount_paid, remaining_due, status').eq('billing_month', month),
+      ])
+
+      const bills = billsRes.data || []
+      let totalRent = 0, totalEC = 0, totalCollected = 0, totalDue = 0, unpaidCount = 0
+      bills.forEach((b) => {
+        totalRent += Number(b.rent_amount) || 0
+        totalEC += Number(b.electricity_amount) || 0
+        totalCollected += Number(b.amount_paid) || 0
+        totalDue += Number(b.remaining_due) || 0
+        if (b.status === 'unpaid' || b.status === 'partial') unpaidCount++
+      })
+
+      setStats({
+        tenants: tenantsRes.count || 0,
+        rooms: roomsRes.count || 0,
+        totalRent,
+        totalEC,
+        totalCollected,
+        totalDue,
+        unpaidCount,
+      })
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleLogout = async () => {
+    await signOut()
+    navigate('/login')
+  }
+
+  const monthLabel = (() => {
+    const d = new Date(month)
+    const names = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+    return `${names[d.getMonth()]} ${d.getFullYear()}`
+  })()
 
   return (
-    <div className="flex h-screen bg-slate-950 text-slate-100 overflow-hidden font-sans">
-      {/* 1. Left Sidebar */}
-      <Sidebar 
-        activeTab={activeTab} 
-        setActiveTab={setActiveTab} 
-        collapsed={collapsed}
-        setCollapsed={setCollapsed}
-        aiOpen={aiOpen}
-        setAiOpen={setAiOpen}
-      />
-
-      {/* 2. Main Content Container */}
-      <div className="flex-1 flex flex-col h-screen overflow-y-auto">
-        {/* Top Navbar Header */}
-        <header className="h-16 border-b border-slate-800/80 bg-slate-900/40 backdrop-blur-md px-8 flex items-center justify-between sticky top-0 z-20">
-          <h1 className="text-xl font-bold tracking-tight text-white capitalize">
-            {activeTab === 'bills' ? 'Month Bills' : activeTab}
-          </h1>
-
-          <div className="flex items-center gap-4">
-            <span className="text-xs px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-              System Active
-            </span>
-            <div className="w-8 h-8 rounded-full bg-blue-600/30 border border-blue-500/40 flex items-center justify-center font-bold text-xs text-blue-300">
-              AD
-            </div>
+    <div>
+      <div className="app-header">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <h1>Home Rent Status</h1>
+            <div className="sub">Welcome, {profile?.full_name || 'Admin'}</div>
           </div>
-        </header>
-
-        {/* Dynamic Page Rendering */}
-        <main className="p-8 flex-1">
-          {activeTab === 'dashboard' && (
-            <div className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800">
-                  <p className="text-sm text-slate-400">Total Revenue</p>
-                  <h2 className="text-3xl font-bold mt-2 text-white">৳ 45,000</h2>
-                </div>
-                <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800">
-                  <p className="text-sm text-slate-400">Active Tenants</p>
-                  <h2 className="text-3xl font-bold mt-2 text-blue-400">12</h2>
-                </div>
-                <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800">
-                  <p className="text-sm text-slate-400">Pending Reminders</p>
-                  <h2 className="text-3xl font-bold mt-2 text-amber-400">3</h2>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {activeTab === 'tenants' && <Tenants />}
-          {activeTab === 'bills' && <Bills />}
-          {activeTab === 'reminders' && <Reminders />}
-          {activeTab === 'reports' && <Reports />}
-        </main>
+          <button className="btn btn-outline" onClick={handleLogout} style={{ padding: '8px 12px' }}>
+            Logout
+          </button>
+        </div>
       </div>
 
-      {/* 3. Floating AI Drawer */}
-      <AiAssistant isOpen={aiOpen} onClose={() => setAiOpen(false)} />
+      <div className="page-content">
+        <div style={{ marginBottom: 12, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <label style={{ fontWeight: 700, color: 'var(--muted)', fontSize: '0.8rem' }}>Month:</label>
+          <input
+            type="month"
+            value={month.slice(0, 7)}
+            onChange={(e) => setMonth(e.target.value + '-01')}
+            style={{ padding: '8px 10px', borderRadius: 8, border: '1.5px solid var(--border)', background: 'white' }}
+          />
+          <span style={{ fontWeight: 700, color: 'var(--primary)' }}>{monthLabel}</span>
+        </div>
+
+        {loading ? (
+          <div className="empty"><div className="spinner" style={{ margin: '0 auto 12px' }} />লোড হচ্ছে...</div>
+        ) : (
+          <>
+            <div className="grid-4" style={{ marginBottom: 16 }}>
+              <div className="sum-card blue">
+                <div className="label">Active Tenants</div>
+                <div className="value">{stats.tenants}</div>
+              </div>
+              <div className="sum-card orange">
+                <div className="label">Rooms</div>
+                <div className="value">{stats.rooms}</div>
+              </div>
+              <div className="sum-card green">
+                <div className="label">Collected</div>
+                <div className="value">৳{fmtBDT(stats.totalCollected)}</div>
+              </div>
+              <div className="sum-card due">
+                <div className="label">Outstanding</div>
+                <div className="value">৳{fmtBDT(stats.totalDue)}</div>
+              </div>
+            </div>
+
+            <div className="grid-2" style={{ marginBottom: 16 }}>
+              <div className="sum-card">
+                <div className="label">This Month Rent</div>
+                <div className="value">৳{fmtBDT(stats.totalRent)}</div>
+              </div>
+              <div className="sum-card">
+                <div className="label">Electricity Bill</div>
+                <div className="value">৳{fmtBDT(stats.totalEC)}</div>
+              </div>
+            </div>
+
+            <div className="card" style={{ marginBottom: 16 }}>
+              <div style={{ fontWeight: 700, marginBottom: 8, color: 'var(--primary)' }}>
+                Unpaid / Partial: {stats.unpaidCount} bill(s)
+              </div>
+            </div>
+          </>
+        )}
+
+        <div style={{ display: 'grid', gap: 10 }}>
+          <Link to="/admin/bills" className="btn btn-primary" style={{ padding: 14 }}>📋 Monthly Bills</Link>
+          <Link to="/admin/tenants" className="btn btn-primary" style={{ padding: 14 }}>👥 Tenants</Link>
+          <Link to="/admin/reminders" className="btn btn-primary" style={{ padding: 14 }}>🔔 Payment Reminders</Link>
+          <Link to="/admin/reports" className="btn btn-primary" style={{ padding: 14 }}>📈 Income & Expense</Link>
+        </div>
+      </div>
+
+      <div className="bottom-nav">
+        <button className="nav-item active"><span className="icon">📊</span>Dashboard</button>
+        <Link to="/admin/bills" className="nav-item"><span className="icon">📋</span>Bills</Link>
+        <Link to="/admin/tenants" className="nav-item"><span className="icon">👥</span>Tenants</Link>
+        <Link to="/admin/reminders" className="nav-item"><span className="icon">🔔</span>Remind</Link>
+      </div>
     </div>
-  );
+  )
 }
