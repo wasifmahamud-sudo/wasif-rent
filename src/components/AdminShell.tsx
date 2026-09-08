@@ -14,28 +14,44 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
     const t = setTimeout(() => {
       const el = document.getElementById(id)
       if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
-    }, 120)
+    }, 150)
     return () => clearTimeout(t)
   }, [loc.pathname, loc.hash])
 
   return (
     <div style={{ minHeight: '100vh' }}>
       <Sidebar open={open} onClose={() => setOpen(false)} />
+
+      {/* z-index 200 — header (100) এর উপরে */}
       <button
         type="button"
         onClick={() => setOpen(true)}
         aria-label="Open menu"
         style={{
-          position: 'fixed', top: 12, left: 12, zIndex: 80,
-          width: 44, height: 44, borderRadius: 12,
-          border: '1.5px solid var(--border)', background: 'var(--card, #fff)',
-          boxShadow: '0 2px 10px rgba(0,0,0,0.08)', fontSize: '1.25rem',
-          cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          position: 'fixed',
+          top: 10,
+          left: 10,
+          zIndex: 200,
+          height: 40,
+          padding: '0 14px',
+          borderRadius: 10,
+          border: 'none',
+          background: '#0f3c6e',
+          color: '#fff',
+          boxShadow: '0 4px 14px rgba(0,0,0,0.25)',
+          fontSize: '0.9rem',
+          fontWeight: 700,
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
         }}
       >
-        ☰
+        <span style={{ fontSize: '1.2rem' }}>☰</span>
+        Menu
       </button>
-      <div style={{ paddingTop: 4 }}>{children}</div>
+
+      <div>{children}</div>
     </div>
   )
 }
