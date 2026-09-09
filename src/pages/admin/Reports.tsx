@@ -27,7 +27,6 @@ type MonthRow = {
 }
 
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-
 const OTHER_INCOME_CATS = ['Shop Rent', 'Service Charge', 'Utility Collection', 'Advance/Other Income', 'Other']
 const HOUSE_EXP_CATS = ['Maintenance', 'Electricity (Common)', 'Water', 'Tax', 'Salary', 'Repair', 'Other']
 const PERSONAL_EXP_CATS = ['Food', 'Family', 'Transport', 'Mobile/Internet', 'Shopping', 'Child/Family', 'Personal', 'Other']
@@ -136,10 +135,6 @@ export default function AdminReports() {
         supabase.from('other_income').select('id, amount, category, note, income_date, house_id').order('income_date', { ascending: false }).limit(10),
         supabase.from('expenses').select('id, amount, category, note, expense_date, house_id, expense_scope').order('expense_date', { ascending: false }).limit(20),
       ])
-
-      if (oiM.error && String(oiM.error.message || '').includes('other_income')) {
-        showToast('Run Other Income SQL first')
-      }
 
       const houseList = hRes.data || []
       setHouses(houseList)
@@ -250,6 +245,17 @@ export default function AdminReports() {
     load()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [month, year])
+
+  // Sidebar hash: #other-income / #house-expense / #personal-expense
+  useEffect(() => {
+    const hash = window.location.hash.replace('#', '')
+    if (!hash || loading) return
+    const t = setTimeout(() => {
+      const el = document.getElementById(hash)
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }, 200)
+    return () => clearTimeout(t)
+  }, [loading, month, year])
 
   const addOtherIncome = async () => {
     const amount = Number(oiAmount)
@@ -451,9 +457,10 @@ export default function AdminReports() {
               ))}
             </div>
 
+            {/* ===== FORMS (sidebar jumps here) ===== */}
             <div style={{ fontWeight: 800, color: 'var(--primary)', marginBottom: 8, fontSize: '1rem' }}>Income</div>
 
-            <div className="card" style={{ marginBottom: 16 }}>
+            <div id="other-income" className="card" style={{ marginBottom: 16, scrollMarginTop: 80 }}>
               <div style={{ fontWeight: 800, marginBottom: 12, color: 'var(--primary)' }}>+ Add Other Income</div>
               <div className="field"><label>Date</label>
                 <input type="date" value={oiDate} onChange={(e) => setOiDate(e.target.value)} /></div>
@@ -477,7 +484,7 @@ export default function AdminReports() {
 
             <div style={{ fontWeight: 800, color: 'var(--primary)', marginBottom: 8, fontSize: '1rem' }}>Expense</div>
 
-            <div className="card" style={{ marginBottom: 16 }}>
+            <div id="house-expense" className="card" style={{ marginBottom: 16, scrollMarginTop: 80 }}>
               <div style={{ fontWeight: 800, marginBottom: 12, color: 'var(--primary)' }}>+ Add House Expense</div>
               <div className="field"><label>Date</label>
                 <input type="date" value={heDate} onChange={(e) => setHeDate(e.target.value)} /></div>
@@ -499,7 +506,7 @@ export default function AdminReports() {
               </button>
             </div>
 
-            <div className="card" style={{ marginBottom: 16 }}>
+            <div id="personal-expense" className="card" style={{ marginBottom: 16, scrollMarginTop: 80 }}>
               <div style={{ fontWeight: 800, marginBottom: 12, color: 'var(--primary)' }}>+ Add Personal Expense</div>
               <div style={{ fontSize: '0.72rem', color: 'var(--muted)', marginBottom: 8 }}>Not counted in House Profit</div>
               <div className="field"><label>Date</label>
