@@ -59,6 +59,15 @@ button, input, select, textarea { font-family: inherit; }
 }
 .app-header h1 { font-size: 1.2rem; font-weight: 800; letter-spacing: -0.3px; }
 .app-header .sub { font-size: 0.72rem; opacity: 0.85; margin-top: 2px; }
+
+/* Menu বাটনের জন্য হেডারে বাম পাশে জায়গা */
+body.has-admin-menu .app-header {
+  padding-left: 100px;
+}
+body.has-admin-menu .app-header h1 {
+  font-size: 1.05rem;
+}
+
 .field { margin-bottom: 14px; }
 .field label {
   font-size: 0.72rem; color: var(--muted); font-weight: 700; display: block; margin-bottom: 4px;
