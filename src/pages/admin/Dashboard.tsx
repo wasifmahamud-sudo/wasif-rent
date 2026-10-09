@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
+import { useTheme } from '../../contexts/ThemeContext'
 import { supabase } from '../../lib/supabase'
 import { fmtBDT } from '../../lib/calculations'
 
@@ -16,6 +17,7 @@ interface Stats {
 
 export default function AdminDashboard() {
   const { profile, signOut } = useAuth()
+  const { theme, toggle } = useTheme()
   const navigate = useNavigate()
   const [stats, setStats] = useState<Stats>({
     tenants: 0, rooms: 0, totalRent: 0, totalEC: 0,
@@ -85,9 +87,14 @@ export default function AdminDashboard() {
             <h1>Home Rent Status</h1>
             <div className="sub">Welcome, {profile?.full_name || 'Admin'}</div>
           </div>
-          <button className="btn btn-outline" onClick={handleLogout} style={{ padding: '8px 12px' }}>
-            Logout
-          </button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button type="button" className="btn btn-outline" onClick={toggle} style={{ padding: '8px 10px' }}>
+              {theme === 'dark' ? '☀️' : '🌙'}
+            </button>
+            <button type="button" className="btn btn-outline" onClick={handleLogout} style={{ padding: '8px 12px' }}>
+              Logout
+            </button>
+          </div>
         </div>
       </div>
 
@@ -154,7 +161,7 @@ export default function AdminDashboard() {
       </div>
 
       <div className="bottom-nav">
-        <button className="nav-item active"><span className="icon">📊</span>Dashboard</button>
+        <button type="button" className="nav-item active"><span className="icon">📊</span>Dashboard</button>
         <Link to="/admin/bills" className="nav-item"><span className="icon">📋</span>Bills</Link>
         <Link to="/admin/tenants" className="nav-item"><span className="icon">👥</span>Tenants</Link>
         <Link to="/admin/reminders" className="nav-item"><span className="icon">🔔</span>Remind</Link>
