@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
-import { useAuth } from '../../contexts/AuthContext'
 import { fmtBDT } from '../../lib/calculations'
 
 interface House { id: string; name: string }
@@ -14,27 +13,33 @@ interface TenantRow {
   active: boolean
   room_number?: string
   house_name?: string
+  house_id?: string
   monthly_rent?: number
 }
 
 export default function AdminTenants() {
-  const { profile } = useAuth()
   const [houses, setHouses] = useState<House[]>([])
   const [rooms, setRooms] = useState<Room[]>([])
   const [tenants, setTenants] = useState<TenantRow[]>([])
   const [loading, setLoading] = useState(true)
   const [toast, setToast] = useState('')
 
-  // Add tenant modal
   const [open, setOpen] = useState(false)
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
   const [houseId, setHouseId] = useState('')
   const [roomNumber, setRoomNumber] = useState('')
   const [rent, setRent] = useState('4000')
+  const [deposit, setDeposit] = useState('0')
+  const [moveIn, setMoveIn] = useState(() => new Date().toISOString().slice(0, 10))
   const [saving, setSaving] = useState(false)
+  const [search, setSearch] = useState('')
+  const [houseFilter, setHouseFilter] = useState('')
 
-  const showToast = (m: string) => { setToast(m); setTimeout(() => setToast(''), 2500) }
+  const showToast = (m: string) => {
+    setToast(m)
+    setTimeout(() => setToast(''), 2500)
+  }
 
   const load = async () => {
     setLoading(true)
@@ -56,6 +61,7 @@ export default function AdminTenants() {
         ...tn,
         room_number: rm?.room_number,
         house_name: rm?.house_name,
+        house_id: rm?.house_id,
         monthly_rent: rm?.monthly_rent,
       }
     })
@@ -73,7 +79,6 @@ export default function AdminTenants() {
     }
     setSaving(true)
     try {
-      // Create or find room
       let roomId: string
       const existing = rooms.find((r) => r.house_id === houseId && r.room_number === roomNumber.trim())
       if (existing) {
@@ -94,14 +99,26 @@ export default function AdminTenants() {
         roomId = data.id
       }
 
-      const { error: tErr } = await supabase.from('tenants').insert({
+      const payload: Record<string, unknown> = {
         full_name: name.trim(),
         phone: phone.trim() || null,
         room_id: roomId,
         active: true,
-        move_in_date: new Date().toISOString().slice(0, 10),
-      })
-      if (tErr) throw tErr
+        move_in_date: moveIn || new Date().toISOString().slice(0, 10),
+      }
+      if (Number(deposit) > 0) payload.deposit = Number(deposit)
+
+      const { error: tErr } = await supabase.from('tenants').insert(payload)
+      if (tErr) {
+        // deposit কলাম না থাকলে ছাড়া আবার চেষ্টা
+        if (String(tErr.message || '').toLowerCase().includes('deposit')) {
+          delete payload.deposit
+          const { error: tErr2 } = await supabase.from('tenants').insert(payload)
+          if (tErr2) throw tErr2
+        } else {
+          throw tErr
+        }
+      }
 
       showToast('টেন্যান্ট যোগ হয়েছে')
       setOpen(false)
@@ -109,6 +126,7 @@ export default function AdminTenants() {
       setPhone('')
       setRoomNumber('')
       setRent('4000')
+      setDeposit('0')
       await load()
     } catch (e: any) {
       showToast(e.message || 'যোগ করতে সমস্যা')
@@ -124,13 +142,25 @@ export default function AdminTenants() {
     await load()
   }
 
+  const filtered = tenants.filter((t) => {
+    const q = search.trim().toLowerCase()
+    if (houseFilter && t.house_id !== houseFilter) return false
+    if (!q) return true
+    return (
+      (t.full_name || '').toLowerCase().includes(q) ||
+      (t.phone || '').toLowerCase().includes(q) ||
+      (t.room_number || '').toLowerCase().includes(q) ||
+      (t.house_name || '').toLowerCase().includes(q)
+    )
+  })
+
   return (
     <div>
       <div className="app-header">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
             <h1>Tenants</h1>
-            <div className="sub">{tenants.length} active tenants</div>
+            <div className="sub">{tenants.length} active · showing {filtered.length}</div>
           </div>
           <Link to="/admin" className="btn btn-outline" style={{ padding: '8px 12px' }}>← Dashboard</Link>
         </div>
@@ -141,12 +171,31 @@ export default function AdminTenants() {
           + Add Tenant
         </button>
 
+        <div className="field" style={{ marginBottom: 10 }}>
+          <input
+            type="search"
+            placeholder="Search name, phone, room..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+        <div className="field" style={{ marginBottom: 14 }}>
+          <select value={houseFilter} onChange={(e) => setHouseFilter(e.target.value)}>
+            <option value="">All houses</option>
+            {houses.map((h) => (
+              <option key={h.id} value={h.id}>{h.name}</option>
+            ))}
+          </select>
+        </div>
+
         {loading ? (
           <div className="empty"><div className="spinner" style={{ margin: '0 auto 12px' }} />লোড হচ্ছে...</div>
         ) : tenants.length === 0 ? (
           <div className="empty">কোনো টেন্যান্ট নেই। + Add Tenant চাপুন।</div>
+        ) : filtered.length === 0 ? (
+          <div className="empty">কোনো মিল পাওয়া যায়নি</div>
         ) : (
-          tenants.map((t) => (
+          filtered.map((t) => (
             <div key={t.id} className="card" style={{ marginBottom: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
                 <div style={{ fontWeight: 800, color: 'var(--primary)' }}>{t.full_name}</div>
@@ -158,7 +207,11 @@ export default function AdminTenants() {
                   Rent: ৳{fmtBDT(t.monthly_rent || 0)}
                 </div>
               </div>
-              <button className="btn btn-danger" style={{ padding: '6px 10px', fontSize: '0.75rem' }} onClick={() => deactivate(t.id, t.full_name)}>
+              <button
+                className="btn btn-danger"
+                style={{ padding: '6px 10px', fontSize: '0.75rem' }}
+                onClick={() => deactivate(t.id, t.full_name)}
+              >
                 Deactivate
               </button>
             </div>
@@ -167,7 +220,10 @@ export default function AdminTenants() {
       </div>
 
       {open && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 200, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }} onClick={() => setOpen(false)}>
+        <div
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 200, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}
+          onClick={() => setOpen(false)}
+        >
           <div className="card" style={{ width: '100%', maxWidth: 480, borderRadius: '20px 20px 0 0', padding: 20 }} onClick={(e) => e.stopPropagation()}>
             <h3 style={{ marginBottom: 14, color: 'var(--primary)', fontWeight: 800 }}>Add Tenant</h3>
             <div className="field">
@@ -192,6 +248,14 @@ export default function AdminTenants() {
               <label>Monthly Rent</label>
               <input type="number" value={rent} onChange={(e) => setRent(e.target.value)} />
             </div>
+            <div className="field">
+              <label>Security Deposit</label>
+              <input type="number" value={deposit} onChange={(e) => setDeposit(e.target.value)} />
+            </div>
+            <div className="field">
+              <label>Joining / Move-in Date</label>
+              <input type="date" value={moveIn} onChange={(e) => setMoveIn(e.target.value)} />
+            </div>
             <button className="btn btn-primary" style={{ width: '100%', padding: 13 }} onClick={addTenant} disabled={saving}>
               {saving ? 'সেভ হচ্ছে...' : 'Save Tenant'}
             </button>
@@ -205,8 +269,8 @@ export default function AdminTenants() {
       <div className="bottom-nav">
         <Link to="/admin" className="nav-item"><span className="icon">📊</span>Dashboard</Link>
         <Link to="/admin/bills" className="nav-item"><span className="icon">📋</span>Bills</Link>
-        <button className="nav-item active"><span className="icon">👥</span>Tenants</button>
-        <Link to="/admin" className="nav-item"><span className="icon">💰</span>Payments</Link>
+        <Link to="/admin/tenants" className="nav-item active"><span className="icon">👥</span>Tenants</Link>
+        <Link to="/admin/reminders" className="nav-item"><span className="icon">🔔</span>Remind</Link>
       </div>
     </div>
   )
