@@ -1,4 +1,4 @@
-:root {
+:root, [data-theme="light"] {
   --primary: #0f3c6e;
   --primary-light: #1a5f9e;
   --accent: #00b894;
@@ -15,6 +15,47 @@
   --shadow: 0 4px 14px rgba(15,60,110,0.08);
   --radius: 14px;
 }
+
+[data-theme="dark"] {
+  --primary: #6eb6ff;
+  --primary-light: #3d8fd1;
+  --accent: #2dd4a8;
+  --danger: #f08a74;
+  --warning: #fdcb6e;
+  --bg: #0f1419;
+  --card: #1a2332;
+  --yellow: #2a2418;
+  --green: #143028;
+  --red: #3a1e1c;
+  --text: #e8eef6;
+  --muted: #94a3b8;
+  --border: #2d3a4d;
+  --shadow: 0 4px 14px rgba(0,0,0,0.35);
+  --radius: 14px;
+}
+
+[data-theme="dark"] .app-header {
+  background: linear-gradient(135deg, #0a1628 0%, #122a45 50%, #0d3d32 100%);
+}
+[data-theme="dark"] .btn-ghost { background: #2d3a4d; color: var(--text); }
+[data-theme="dark"] .tenant-table th { background: #122a45; }
+[data-theme="dark"] .tenant-table td { border-bottom-color: var(--border); }
+[data-theme="dark"] .tenant-table tr:nth-child(even) { background: #15202b; }
+[data-theme="dark"] .table-wrap { background: var(--card); }
+[data-theme="dark"] .bottom-nav { background: var(--card); border-top-color: var(--border); }
+[data-theme="dark"] .pay-info-card { background: var(--green) !important; border-color: #2d6a4f !important; }
+[data-theme="dark"] .bill-card { background: var(--card); }
+[data-theme="dark"] .bill-row { border-bottom-color: var(--border); }
+[data-theme="dark"] .bill-row.total { background: #152a40; color: var(--primary); }
+[data-theme="dark"] .field input,
+[data-theme="dark"] .field select,
+[data-theme="dark"] .field textarea {
+  background: #15202b;
+  color: var(--text);
+  border-color: var(--border);
+}
+[data-theme="dark"] body { background: var(--bg); color: var(--text); }
+
 * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
