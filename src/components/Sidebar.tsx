@@ -33,57 +33,51 @@ export default function Sidebar({ open, onClose }: { open: boolean; onClose: () 
 
   const isActive = (to: string) => {
     if (to.includes('#')) {
-      return path === to || (loc.pathname === to.split('#')[0] && loc.hash === '#' + to.split('#')[1])
+      return (
+        path === to ||
+        (loc.pathname === to.split('#')[0] && loc.hash === '#' + to.split('#')[1])
+      )
     }
     if (to === '/admin') return loc.pathname === '/admin'
-    return loc.pathname === to
+    return loc.pathname === to || loc.pathname.startsWith(to + '/')
   }
 
   return (
     <>
-      {open && (
-        <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 90 }} />
-      )}
+      {open && <div className="sidebar-backdrop" onClick={onClose} aria-hidden="true" />}
+
       <aside
-        style={{
-          position: 'fixed', top: 0, left: 0, bottom: 0, width: 260,
-          background: 'var(--card, #fff)', borderRight: '1px solid var(--border, #e5e7eb)',
-          zIndex: 100, transform: open ? 'translateX(0)' : 'translateX(-100%)',
-          transition: 'transform 0.2s ease', overflowY: 'auto', padding: '16px 12px 24px',
-          boxShadow: open ? '4px 0 24px rgba(0,0,0,0.08)' : 'none',
-        }}
+        className={`admin-sidebar${open ? ' is-open' : ''}`}
+        aria-hidden={!open}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, padding: '0 8px' }}>
-          <div style={{ fontWeight: 800, color: 'var(--primary)', fontSize: '1rem' }}>Home Rent</div>
-          <button type="button" onClick={onClose} className="btn btn-outline" style={{ padding: '4px 10px' }}>✕</button>
+        <div className="sidebar-head">
+          <div className="sidebar-brand">Home Rent</div>
+          <button type="button" className="sidebar-close" onClick={onClose} aria-label="Close menu">
+            ✕
+          </button>
         </div>
-        {SECTIONS.map((sec) => (
-          <div key={sec.title} style={{ marginBottom: 14 }}>
-            <div style={{ fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.06em', color: 'var(--muted)', padding: '4px 10px', marginBottom: 4 }}>
-              {sec.title}
+
+        <nav className="sidebar-nav">
+          {SECTIONS.map((sec) => (
+            <div key={sec.title} className="sidebar-section">
+              <div className="sidebar-section-title">{sec.title}</div>
+              {sec.items.map((item) => {
+                const active = isActive(item.to)
+                return (
+                  <Link
+                    key={item.to}
+                    to={item.to}
+                    onClick={onClose}
+                    className={`sidebar-link${active ? ' active' : ''}`}
+                  >
+                    <span className="sidebar-icon">{item.icon}</span>
+                    <span>{item.label}</span>
+                  </Link>
+                )
+              })}
             </div>
-            {sec.items.map((item) => {
-              const active = isActive(item.to)
-              return (
-                <Link
-                  key={item.to}
-                  to={item.to}
-                  onClick={onClose}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px',
-                    borderRadius: 10, marginBottom: 2, textDecoration: 'none',
-                    fontWeight: active ? 700 : 500, fontSize: '0.88rem',
-                    color: active ? 'var(--primary)' : 'var(--text, #1f2937)',
-                    background: active ? 'rgba(37, 99, 235, 0.08)' : 'transparent',
-                  }}
-                >
-                  <span style={{ fontSize: '1.1rem', width: 22, textAlign: 'center' }}>{item.icon}</span>
-                  {item.label}
-                </Link>
-              )
-            })}
-          </div>
-        ))}
+          ))}
+        </nav>
       </aside>
     </>
   )
