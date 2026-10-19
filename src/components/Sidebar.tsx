@@ -44,23 +44,96 @@ export default function Sidebar({ open, onClose }: { open: boolean; onClose: () 
 
   return (
     <>
-      {open && <div className="sidebar-backdrop" onClick={onClose} aria-hidden="true" />}
+      {open && (
+        <div
+          onClick={onClose}
+          aria-hidden="true"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.45)',
+            zIndex: 130,
+            touchAction: 'none',
+          }}
+        />
+      )}
 
       <aside
-        className={`admin-sidebar${open ? ' is-open' : ''}`}
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          bottom: 0,
+          width: 'min(280px, 86vw)',
+          background: 'var(--card, #ffffff)',
+          borderRight: '1px solid var(--border, #e5e7eb)',
+          zIndex: 140,
+          transform: open ? 'translateX(0)' : 'translateX(-105%)',
+          transition: 'transform 0.22s ease',
+          display: 'flex',
+          flexDirection: 'column',
+          boxShadow: open ? '4px 0 28px rgba(0,0,0,0.18)' : 'none',
+          paddingTop: 'env(safe-area-inset-top, 0px)',
+          overflow: 'hidden',
+        }}
         aria-hidden={!open}
       >
-        <div className="sidebar-head">
-          <div className="sidebar-brand">Home Rent</div>
-          <button type="button" className="sidebar-close" onClick={onClose} aria-label="Close menu">
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            padding: '14px 12px 10px',
+            borderBottom: '1px solid var(--border, #e5e7eb)',
+            flexShrink: 0,
+          }}
+        >
+          <div style={{ fontWeight: 800, color: 'var(--primary, #0f3c6e)', fontSize: '1rem' }}>
+            Home Rent
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close menu"
+            style={{
+              width: 40,
+              height: 40,
+              borderRadius: 10,
+              border: '1px solid var(--border, #e5e7eb)',
+              background: 'var(--bg, #eef2f7)',
+              color: 'var(--text, #1a1a2e)',
+              fontSize: '1rem',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
             ✕
           </button>
         </div>
 
-        <nav className="sidebar-nav">
+        <nav
+          style={{
+            flex: 1,
+            overflowY: 'auto',
+            WebkitOverflowScrolling: 'touch',
+            padding: '10px 10px 24px',
+          }}
+        >
           {SECTIONS.map((sec) => (
-            <div key={sec.title} className="sidebar-section">
-              <div className="sidebar-section-title">{sec.title}</div>
+            <div key={sec.title} style={{ marginBottom: 12 }}>
+              <div
+                style={{
+                  fontSize: '0.65rem',
+                  fontWeight: 700,
+                  letterSpacing: '0.06em',
+                  color: 'var(--muted, #6b7280)',
+                  padding: '6px 10px 4px',
+                }}
+              >
+                {sec.title}
+              </div>
               {sec.items.map((item) => {
                 const active = isActive(item.to)
                 return (
@@ -68,9 +141,24 @@ export default function Sidebar({ open, onClose }: { open: boolean; onClose: () 
                     key={item.to}
                     to={item.to}
                     onClick={onClose}
-                    className={`sidebar-link${active ? ' active' : ''}`}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 10,
+                      padding: '12px 12px',
+                      borderRadius: 10,
+                      marginBottom: 2,
+                      fontWeight: 600,
+                      fontSize: '0.9rem',
+                      color: active ? 'var(--primary, #0f3c6e)' : 'var(--text, #1a1a2e)',
+                      background: active ? 'rgba(15, 60, 110, 0.1)' : 'transparent',
+                      textDecoration: 'none',
+                      minHeight: 44,
+                    }}
                   >
-                    <span className="sidebar-icon">{item.icon}</span>
+                    <span style={{ fontSize: '1.1rem', width: '1.4rem', textAlign: 'center' }}>
+                      {item.icon}
+                    </span>
                     <span>{item.label}</span>
                   </Link>
                 )
