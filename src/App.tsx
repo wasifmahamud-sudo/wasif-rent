@@ -8,6 +8,8 @@ import AdminBills from './pages/admin/Bills'
 import AdminTenants from './pages/admin/Tenants'
 import AdminReports from './pages/admin/Reports'
 import AdminReminders from './pages/admin/Reminders'
+import AdminNotices from './pages/admin/Notices'
+import AdminComplaints from './pages/admin/Complaints'
 import TenantDashboard from './pages/tenant/Dashboard'
 
 function RootRedirect() {
@@ -44,6 +46,8 @@ export default function App() {
           <Route path="/admin/tenants" element={<AdminPage><AdminTenants /></AdminPage>} />
           <Route path="/admin/reports" element={<AdminPage><AdminReports /></AdminPage>} />
           <Route path="/admin/reminders" element={<AdminPage><AdminReminders /></AdminPage>} />
+          <Route path="/admin/notices" element={<AdminPage><AdminNotices /></AdminPage>} />
+          <Route path="/admin/complaints" element={<AdminPage><AdminComplaints /></AdminPage>} />
           <Route path="/admin/payments" element={<AdminPage><AdminBills /></AdminPage>} />
           <Route path="/admin/rooms" element={<AdminPage><AdminBills /></AdminPage>} />
           <Route path="/admin/settings" element={<AdminPage><AdminBills /></AdminPage>} />
