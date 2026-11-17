@@ -23,7 +23,11 @@ const SECTIONS: { title: string; items: Item[] }[] = [
   },
   {
     title: 'OPERATIONS',
-    items: [{ to: '/admin/reminders', label: 'Reminders', icon: '🔔' }],
+    items: [
+      { to: '/admin/reminders', label: 'Reminders', icon: '🔔' },
+      { to: '/admin/notices', label: 'Notice Board', icon: '📢' },
+      { to: '/admin/complaints', label: 'Complaints', icon: '🛠️' },
+    ],
   },
 ]
 
