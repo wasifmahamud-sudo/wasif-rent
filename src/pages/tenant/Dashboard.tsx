@@ -317,6 +317,53 @@ export default function TenantDashboard() {
           </div>
         </div>
 
+        {/* Notices — TOP */}
+        <div className="card" style={{ marginBottom: 16 }}>
+          <div style={{ fontWeight: 800, color: 'var(--primary)', marginBottom: 10 }}>📢 Notices</div>
+          {notices.length === 0 ? (
+            <div className="empty" style={{ padding: 12 }}>কোনো নতুন notice নেই</div>
+          ) : (
+            notices.map((n) => {
+              const isNew = Date.now() - new Date(n.published_at).getTime() < 7 * 24 * 60 * 60 * 1000
+              return (
+                <div
+                  key={n.id}
+                  style={{
+                    borderBottom: '1px solid var(--border)',
+                    padding: '10px 0',
+                    borderLeft: n.is_important ? '3px solid var(--danger)' : undefined,
+                    paddingLeft: n.is_important ? 8 : 0,
+                  }}
+                >
+                  <div style={{ fontWeight: 800 }}>
+                    {n.is_important ? '⭐ ' : ''}
+                    {n.title}
+                    {isNew && (
+                      <span
+                        style={{
+                          marginLeft: 8,
+                          fontSize: '0.65rem',
+                          background: 'var(--danger)',
+                          color: '#fff',
+                          padding: '2px 6px',
+                          borderRadius: 6,
+                          fontWeight: 700,
+                        }}
+                      >
+                        NEW
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--muted)', marginTop: 2 }}>
+                    {new Date(n.published_at).toLocaleDateString()}
+                  </div>
+                  <div style={{ marginTop: 6, whiteSpace: 'pre-wrap', fontSize: '0.88rem' }}>{n.body}</div>
+                </div>
+              )
+            })
+          )}
+        </div>
+
         {(bkash || nagad || bank) && (
           <div className="card pay-info-card" style={{ marginBottom: 16 }}>
             <div style={{ fontWeight: 800, color: 'var(--primary)', marginBottom: 10 }}>💳 টাকা পাঠাবেন এখানে</div>
@@ -371,41 +418,34 @@ export default function TenantDashboard() {
                   <div style={{ fontWeight: 700 }}>{formatMonth(m.billing_month)}</div>
                   <div style={{ fontSize: '0.82rem', marginTop: 4 }}>
                     Prev: <strong>{m.previous_reading ?? '—'}</strong> · New:{' '}
-                    <strong>{m.current_reading ?? '—'}</strong> · Units:{' '}
-                    <strong>{units ?? '—'}</strong>
+                    <strong>{m.current_reading ?? '—'}</strong> · Units: <strong>{units ?? '—'}</strong>
                   </div>
                   <div style={{ fontSize: '0.72rem', color: 'var(--muted)', marginTop: 2 }}>{delta.text}</div>
                 </div>
               )
             })
-          ) : (
-            billHistory.length > 0 && (
-              <div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--muted)', marginBottom: 8 }}>
-                  From bills (meter reading not stored)
+          ) : billHistory.length > 0 ? (
+            billHistory.slice(0, 4).map((b, idx, arr) => {
+              const next = arr[idx + 1]
+              let cmp = '—'
+              if (next) {
+                const d = Number(b.electricity_units) - Number(next.electricity_units)
+                if (d > 0) cmp = `+${d} units vs previous`
+                else if (d < 0) cmp = `${d} units vs previous`
+                else cmp = 'Same as previous month'
+              }
+              return (
+                <div key={b.id} style={{ borderBottom: '1px solid var(--border)', padding: '10px 0' }}>
+                  <div style={{ fontWeight: 700 }}>{formatMonth(b.billing_month)}</div>
+                  <div style={{ fontSize: '0.82rem', marginTop: 4 }}>
+                    Units: <strong>{b.electricity_units}</strong> · ৳{fmtBDT(b.electricity_amount)}
+                  </div>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--muted)' }}>{cmp}</div>
                 </div>
-                {billHistory.slice(0, 4).map((b, idx, arr) => {
-                  const next = arr[idx + 1]
-                  let cmp = '—'
-                  if (next) {
-                    const d = Number(b.electricity_units) - Number(next.electricity_units)
-                    if (d > 0) cmp = `+${d} units vs previous`
-                    else if (d < 0) cmp = `${d} units vs previous`
-                    else cmp = 'Same as previous month'
-                  }
-                  return (
-                    <div key={b.id} style={{ borderBottom: '1px solid var(--border)', padding: '10px 0' }}>
-                      <div style={{ fontWeight: 700 }}>{formatMonth(b.billing_month)}</div>
-                      <div style={{ fontSize: '0.82rem', marginTop: 4 }}>
-                        Units: <strong>{b.electricity_units}</strong> · Rate: ৳{fmtBDT(b.electricity_rate)} · Charge:{' '}
-                        <strong>৳{fmtBDT(b.electricity_amount)}</strong>
-                      </div>
-                      <div style={{ fontSize: '0.72rem', color: 'var(--muted)', marginTop: 2 }}>{cmp}</div>
-                    </div>
-                  )
-                })}
-              </div>
-            )
+              )
+            })
+          ) : (
+            <div className="empty" style={{ padding: 12 }}>No usage data</div>
           )}
         </div>
 
@@ -451,54 +491,6 @@ export default function TenantDashboard() {
           )}
         </div>
 
-        {/* Notices */}
-        <div className="card" style={{ marginBottom: 16 }}>
-          <div style={{ fontWeight: 800, color: 'var(--primary)', marginBottom: 10 }}>📢 Notices</div>
-          {notices.length === 0 ? (
-            <div className="empty" style={{ padding: 12 }}>কোনো নতুন notice নেই</div>
-          ) : (
-            notices.map((n) => {
-              const isNew = Date.now() - new Date(n.published_at).getTime() < 7 * 24 * 60 * 60 * 1000
-              return (
-                <div
-                  key={n.id}
-                  style={{
-                    borderBottom: '1px solid var(--border)',
-                    padding: '10px 0',
-                    borderLeft: n.is_important ? '3px solid var(--danger)' : undefined,
-                    paddingLeft: n.is_important ? 8 : 0,
-                  }}
-                >
-                  <div style={{ fontWeight: 800 }}>
-                    {n.is_important ? '⭐ ' : ''}
-                    {n.title}
-                    {isNew && (
-                      <span
-                        style={{
-                          marginLeft: 8,
-                          fontSize: '0.65rem',
-                          background: 'var(--danger)',
-                          color: '#fff',
-                          padding: '2px 6px',
-                          borderRadius: 6,
-                          fontWeight: 700,
-                        }}
-                      >
-                        NEW
-                      </span>
-                    )}
-                  </div>
-                  <div style={{ fontSize: '0.72rem', color: 'var(--muted)', marginTop: 2 }}>
-                    {new Date(n.published_at).toLocaleDateString()}
-                  </div>
-                  <div style={{ marginTop: 6, whiteSpace: 'pre-wrap', fontSize: '0.88rem' }}>{n.body}</div>
-                </div>
-              )
-            })
-          )}
-        </div>
-
-        {/* Complaint box */}
         <div className="card" style={{ marginBottom: 16 }}>
           <div style={{ fontWeight: 800, color: 'var(--primary)', marginBottom: 10 }}>🛠️ Complaint Box</div>
           <div className="field">
