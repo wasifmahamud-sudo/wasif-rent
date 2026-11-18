@@ -59,6 +59,7 @@ export default function TenantDashboard() {
   const [cPhoto, setCPhoto] = useState('')
   const [cSaving, setCSaving] = useState(false)
   const [cMsg, setCMsg] = useState('')
+  const [expandedNoticeId, setExpandedNoticeId] = useState<string | null>(null)
 
   useEffect(() => {
     loadData()
@@ -281,7 +282,7 @@ export default function TenantDashboard() {
             <div className="sub">{roomNumber ? `Room: ${roomNumber}` : 'Tenant Portal'} · Read-only</div>
           </div>
           <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
-            <button type="button" className="btn btn-outline" onClick={toggle} style={{ padding: '8px 10px' }} title="Theme">
+            <button type="button" className="btn btn-outline" onClick={toggle} style={{ padding: '8px 10px' }}>
               {theme === 'dark' ? '☀️' : '🌙'}
             </button>
             <button type="button" className="btn btn-outline" onClick={handleLogout} style={{ padding: '8px 12px' }}>
@@ -317,61 +318,93 @@ export default function TenantDashboard() {
           </div>
         </div>
 
-        {/* Notices — TOP */}
-        <div className="card" style={{ marginBottom: 16 }}>
-          <div style={{ fontWeight: 800, color: 'var(--primary)', marginBottom: 10 }}>📢 Notices</div>
+        <div className="card" style={{ marginBottom: 16, padding: '12px 14px' }}>
+          <div style={{ fontWeight: 800, color: 'var(--primary)', marginBottom: 8, fontSize: '0.95rem' }}>
+            📢 Notices
+            {notices.length > 0 && (
+              <span style={{ marginLeft: 8, fontSize: '0.72rem', color: 'var(--muted)', fontWeight: 600 }}>
+                ({notices.length})
+              </span>
+            )}
+          </div>
           {notices.length === 0 ? (
-            <div className="empty" style={{ padding: 12 }}>কোনো নতুন notice নেই</div>
+            <div style={{ fontSize: '0.82rem', color: 'var(--muted)', padding: '4px 0' }}>কোনো নতুন notice নেই</div>
           ) : (
             notices.map((n) => {
               const isNew = Date.now() - new Date(n.published_at).getTime() < 7 * 24 * 60 * 60 * 1000
+              const open = expandedNoticeId === n.id
               return (
-                <div
+                <button
                   key={n.id}
+                  type="button"
+                  onClick={() => setExpandedNoticeId(open ? null : n.id)}
                   style={{
+                    display: 'block',
+                    width: '100%',
+                    textAlign: 'left',
+                    border: 'none',
                     borderBottom: '1px solid var(--border)',
-                    padding: '10px 0',
-                    borderLeft: n.is_important ? '3px solid var(--danger)' : undefined,
-                    paddingLeft: n.is_important ? 8 : 0,
+                    background: open ? 'rgba(15,60,110,0.06)' : 'transparent',
+                    padding: '10px 4px',
+                    cursor: 'pointer',
+                    borderLeft: n.is_important ? '3px solid var(--danger)' : '3px solid transparent',
+                    paddingLeft: 8,
+                    borderRadius: 6,
+                    color: 'inherit',
+                    fontFamily: 'inherit',
                   }}
                 >
-                  <div style={{ fontWeight: 800 }}>
-                    {n.is_important ? '⭐ ' : ''}
-                    {n.title}
-                    {isNew && (
-                      <span
-                        style={{
-                          marginLeft: 8,
-                          fontSize: '0.65rem',
-                          background: 'var(--danger)',
-                          color: '#fff',
-                          padding: '2px 6px',
-                          borderRadius: 6,
-                          fontWeight: 700,
-                        }}
-                      >
-                        NEW
-                      </span>
-                    )}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                    <div style={{ fontWeight: 800, fontSize: '0.88rem' }}>
+                      {n.is_important ? '⭐ ' : ''}
+                      {n.title}
+                      {isNew && (
+                        <span
+                          style={{
+                            marginLeft: 6,
+                            fontSize: '0.6rem',
+                            background: 'var(--danger)',
+                            color: '#fff',
+                            padding: '1px 5px',
+                            borderRadius: 5,
+                            fontWeight: 700,
+                          }}
+                        >
+                          NEW
+                        </span>
+                      )}
+                    </div>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--muted)' }}>{open ? '▲' : '▼'}</span>
                   </div>
-                  <div style={{ fontSize: '0.72rem', color: 'var(--muted)', marginTop: 2 }}>
+                  <div style={{ fontSize: '0.68rem', color: 'var(--muted)', marginTop: 2 }}>
                     {new Date(n.published_at).toLocaleDateString()}
+                    {!open && n.body ? ` · ${n.body.slice(0, 40)}${n.body.length > 40 ? '…' : ''}` : ''}
                   </div>
-                  <div style={{ marginTop: 6, whiteSpace: 'pre-wrap', fontSize: '0.88rem' }}>{n.body}</div>
-                </div>
+                  {open && (
+                    <div style={{ marginTop: 8, whiteSpace: 'pre-wrap', fontSize: '0.88rem', lineHeight: 1.45 }}>
+                      {n.body}
+                    </div>
+                  )}
+                </button>
               )
             })
           )}
         </div>
 
         {(bkash || nagad || bank) && (
-          <div className="card pay-info-card" style={{ marginBottom: 16 }}>
+          <div className="card" style={{ marginBottom: 16 }}>
             <div style={{ fontWeight: 800, color: 'var(--primary)', marginBottom: 10 }}>💳 টাকা পাঠাবেন এখানে</div>
             {bkash && (
-              <div className="bill-row"><span>bKash</span><span style={{ fontWeight: 800 }}>{bkash}</span></div>
+              <div className="bill-row">
+                <span>bKash</span>
+                <span style={{ fontWeight: 800 }}>{bkash}</span>
+              </div>
             )}
             {nagad && (
-              <div className="bill-row"><span>Nagad</span><span style={{ fontWeight: 800 }}>{nagad}</span></div>
+              <div className="bill-row">
+                <span>Nagad</span>
+                <span style={{ fontWeight: 800 }}>{nagad}</span>
+              </div>
             )}
             {bank && (
               <div className="bill-row">
@@ -390,14 +423,38 @@ export default function TenantDashboard() {
         {bill ? (
           <div className="bill-card" style={{ marginBottom: 16 }}>
             <div className="bill-header">Current Bill — {formatMonth(bill.billing_month)}</div>
-            <div className="bill-row"><span>Room</span><span style={{ fontWeight: 700 }}>{roomNumber || '—'}</span></div>
-            <div className="bill-row"><span>Monthly Rent</span><span>৳{fmtBDT(bill.rent_amount)}</span></div>
-            <div className="bill-row"><span>Electricity Units</span><span>{bill.electricity_units} Units</span></div>
-            <div className="bill-row"><span>Rate</span><span>৳{fmtBDT(bill.electricity_rate)}/unit</span></div>
-            <div className="bill-row"><span>Electricity Bill</span><span>৳{fmtBDT(bill.electricity_amount)}</span></div>
-            <div className="bill-row"><span>Previous Due</span><span>৳{fmtBDT(bill.previous_due)}</span></div>
-            <div className="bill-row total"><span>Total Bill</span><span>৳{fmtBDT(bill.total_bill)}</span></div>
-            <div className="bill-row paid-row"><span>Paid</span><span>৳{fmtBDT(bill.amount_paid)}</span></div>
+            <div className="bill-row">
+              <span>Room</span>
+              <span style={{ fontWeight: 700 }}>{roomNumber || '—'}</span>
+            </div>
+            <div className="bill-row">
+              <span>Monthly Rent</span>
+              <span>৳{fmtBDT(bill.rent_amount)}</span>
+            </div>
+            <div className="bill-row">
+              <span>Electricity Units</span>
+              <span>{bill.electricity_units} Units</span>
+            </div>
+            <div className="bill-row">
+              <span>Rate</span>
+              <span>৳{fmtBDT(bill.electricity_rate)}/unit</span>
+            </div>
+            <div className="bill-row">
+              <span>Electricity Bill</span>
+              <span>৳{fmtBDT(bill.electricity_amount)}</span>
+            </div>
+            <div className="bill-row">
+              <span>Previous Due</span>
+              <span>৳{fmtBDT(bill.previous_due)}</span>
+            </div>
+            <div className="bill-row total">
+              <span>Total Bill</span>
+              <span>৳{fmtBDT(bill.total_bill)}</span>
+            </div>
+            <div className="bill-row paid-row">
+              <span>Paid</span>
+              <span>৳{fmtBDT(bill.amount_paid)}</span>
+            </div>
             <div className={`bill-row ${Number(bill.remaining_due) > 0 ? 'due-row' : 'paid-row'}`}>
               <span>Remaining Due</span>
               <span>৳{fmtBDT(bill.remaining_due)}</span>
@@ -417,30 +474,10 @@ export default function TenantDashboard() {
                 <div key={m.id} style={{ borderBottom: '1px solid var(--border)', padding: '10px 0' }}>
                   <div style={{ fontWeight: 700 }}>{formatMonth(m.billing_month)}</div>
                   <div style={{ fontSize: '0.82rem', marginTop: 4 }}>
-                    Prev: <strong>{m.previous_reading ?? '—'}</strong> · New:{' '}
-                    <strong>{m.current_reading ?? '—'}</strong> · Units: <strong>{units ?? '—'}</strong>
+                    Prev: <strong>{m.previous_reading ?? '—'}</strong> · New: <strong>{m.current_reading ?? '—'}</strong> ·
+                    Units: <strong>{units ?? '—'}</strong>
                   </div>
                   <div style={{ fontSize: '0.72rem', color: 'var(--muted)', marginTop: 2 }}>{delta.text}</div>
-                </div>
-              )
-            })
-          ) : billHistory.length > 0 ? (
-            billHistory.slice(0, 4).map((b, idx, arr) => {
-              const next = arr[idx + 1]
-              let cmp = '—'
-              if (next) {
-                const d = Number(b.electricity_units) - Number(next.electricity_units)
-                if (d > 0) cmp = `+${d} units vs previous`
-                else if (d < 0) cmp = `${d} units vs previous`
-                else cmp = 'Same as previous month'
-              }
-              return (
-                <div key={b.id} style={{ borderBottom: '1px solid var(--border)', padding: '10px 0' }}>
-                  <div style={{ fontWeight: 700 }}>{formatMonth(b.billing_month)}</div>
-                  <div style={{ fontSize: '0.82rem', marginTop: 4 }}>
-                    Units: <strong>{b.electricity_units}</strong> · ৳{fmtBDT(b.electricity_amount)}
-                  </div>
-                  <div style={{ fontSize: '0.72rem', color: 'var(--muted)' }}>{cmp}</div>
                 </div>
               )
             })
@@ -453,19 +490,14 @@ export default function TenantDashboard() {
           <div className="card" style={{ marginBottom: 16 }}>
             <div style={{ fontWeight: 800, color: 'var(--primary)', marginBottom: 10 }}>📋 Bill history</div>
             {billHistory.map((b) => (
-              <div key={b.id} className="bill-row" style={{ padding: '10px 0', flexWrap: 'wrap', gap: 4 }}>
+              <div key={b.id} className="bill-row" style={{ padding: '10px 0' }}>
                 <div>
                   <div style={{ fontWeight: 700 }}>{formatMonth(b.billing_month)}</div>
                   <div style={{ fontSize: '0.72rem', color: 'var(--muted)' }}>
-                    Rent ৳{fmtBDT(b.rent_amount)} · EC ৳{fmtBDT(b.electricity_amount)} · {b.status}
+                    Rent ৳{fmtBDT(b.rent_amount)} · EC ৳{fmtBDT(b.electricity_amount)}
                   </div>
                 </div>
-                <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontWeight: 800, color: Number(b.remaining_due) > 0 ? 'var(--danger)' : 'var(--accent)' }}>
-                    Due ৳{fmtBDT(b.remaining_due)}
-                  </div>
-                  <div style={{ fontSize: '0.72rem', color: 'var(--muted)' }}>Paid ৳{fmtBDT(b.amount_paid)}</div>
-                </div>
+                <div style={{ textAlign: 'right', fontWeight: 800 }}>Due ৳{fmtBDT(b.remaining_due)}</div>
               </div>
             ))}
           </div>
@@ -480,10 +512,7 @@ export default function TenantDashboard() {
               <div key={p.id} className="bill-row" style={{ padding: '10px 0' }}>
                 <div>
                   <div style={{ fontWeight: 700 }}>{p.payment_date}</div>
-                  <div style={{ fontSize: '0.72rem', color: 'var(--muted)' }}>
-                    {p.payment_method}
-                    {p.transaction_reference ? ` · ${p.transaction_reference}` : ''}
-                  </div>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--muted)' }}>{p.payment_method}</div>
                 </div>
                 <div style={{ fontWeight: 800, color: 'var(--accent)' }}>৳{fmtBDT(p.amount)}</div>
               </div>
@@ -501,7 +530,9 @@ export default function TenantDashboard() {
             <label>Category</label>
             <select value={cCategory} onChange={(e) => setCCategory(e.target.value)}>
               {['Water', 'Electricity', 'Plumbing', 'Bathroom', 'Maintenance', 'Security', 'Other'].map((c) => (
-                <option key={c} value={c}>{c}</option>
+                <option key={c} value={c}>
+                  {c}
+                </option>
               ))}
             </select>
           </div>
@@ -511,7 +542,7 @@ export default function TenantDashboard() {
               rows={3}
               value={cDesc}
               onChange={(e) => setCDesc(e.target.value)}
-              placeholder="বিস্তারিত লিখুন..."
+              placeholder="বিস্তারিত..."
               style={{
                 width: '100%',
                 padding: 11,
@@ -521,10 +552,6 @@ export default function TenantDashboard() {
                 color: 'var(--input-text, #333)',
               }}
             />
-          </div>
-          <div className="field">
-            <label>Photo URL (optional)</label>
-            <input value={cPhoto} onChange={(e) => setCPhoto(e.target.value)} placeholder="https://..." />
           </div>
           {cMsg && (
             <div style={{ marginBottom: 10, fontWeight: 600, color: cMsg.includes('জমা') ? 'var(--accent)' : 'var(--danger)' }}>
@@ -545,7 +572,7 @@ export default function TenantDashboard() {
               <div key={c.id} style={{ borderBottom: '1px solid var(--border)', padding: '10px 0' }}>
                 <div style={{ fontWeight: 800 }}>{c.subject}</div>
                 <div style={{ fontSize: '0.72rem', color: 'var(--muted)' }}>
-                  {c.category} · {c.status} · {new Date(c.created_at).toLocaleDateString()}
+                  {c.category} · {c.status}
                 </div>
                 <div style={{ marginTop: 4, fontSize: '0.85rem' }}>{c.description}</div>
                 {c.admin_reply && (
