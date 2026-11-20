@@ -1,3 +1,4 @@
+
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import ProtectedRoute from './components/ProtectedRoute'
@@ -10,6 +11,7 @@ import AdminReports from './pages/admin/Reports'
 import AdminReminders from './pages/admin/Reminders'
 import AdminNotices from './pages/admin/Notices'
 import AdminComplaints from './pages/admin/Complaints'
+import PaymentReceipts from './pages/admin/PaymentReceipts'
 import TenantDashboard from './pages/tenant/Dashboard'
 
 function RootRedirect() {
@@ -48,7 +50,7 @@ export default function App() {
           <Route path="/admin/reminders" element={<AdminPage><AdminReminders /></AdminPage>} />
           <Route path="/admin/notices" element={<AdminPage><AdminNotices /></AdminPage>} />
           <Route path="/admin/complaints" element={<AdminPage><AdminComplaints /></AdminPage>} />
-          <Route path="/admin/payments" element={<AdminPage><AdminBills /></AdminPage>} />
+          <Route path="/admin/payments" element={<AdminPage><PaymentReceipts /></AdminPage>} />
           <Route path="/admin/rooms" element={<AdminPage><AdminBills /></AdminPage>} />
           <Route path="/admin/settings" element={<AdminPage><AdminBills /></AdminPage>} />
           <Route path="/tenant" element={<ProtectedRoute role="tenant"><TenantDashboard /></ProtectedRoute>} />
