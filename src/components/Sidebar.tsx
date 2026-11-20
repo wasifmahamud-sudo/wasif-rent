@@ -1,3 +1,4 @@
+
 import { Link, useLocation } from 'react-router-dom'
 
 type Item = { to: string; label: string; icon: string }
@@ -15,6 +16,7 @@ const SECTIONS: { title: string; items: Item[] }[] = [
     title: 'FINANCE',
     items: [
       { to: '/admin/bills', label: 'Bills & Invoices', icon: '📋' },
+      { to: '/admin/payments', label: 'Payment Receipts', icon: '🧾' },
       { to: '/admin/reports', label: 'Income & Expense', icon: '📈' },
       { to: '/admin/reports#other-income', label: 'Other Income', icon: '💵' },
       { to: '/admin/reports#house-expense', label: 'House Expenses', icon: '🏠' },
