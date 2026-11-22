@@ -1064,3 +1064,138 @@ body.tenant-sidebar-open {
   overflow: hidden !important;
   touch-action: none;
 }
+
+/* ===== Tenant Dashboard Enhancements ===== */
+
+.tenant-page-content-inner {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.tenant-page-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.tenant-page-heading h1 {
+  margin: 0;
+  font-size: 1.45rem;
+  font-weight: 800;
+  color: var(--text);
+}
+
+.tenant-page-heading p {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.tenant-section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.tenant-notice-highlight {
+  border-left: 4px solid var(--primary);
+}
+
+.tenant-quick-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.tenant-quick-actions button {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 5px;
+  min-width: 0;
+  padding: 15px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--card);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+}
+
+.tenant-quick-actions button:hover {
+  background: var(--bg);
+  border-color: var(--primary);
+  transform: translateY(-2px);
+}
+
+.tenant-quick-actions button > span {
+  font-size: 1.45rem;
+  margin-bottom: 3px;
+}
+
+.tenant-quick-actions button strong {
+  font-size: 0.88rem;
+}
+
+.tenant-quick-actions button small {
+  color: var(--muted);
+  font-size: 0.73rem;
+}
+
+@media (max-width: 767px) {
+  .tenant-page-heading {
+    margin-bottom: 14px;
+  }
+
+  .tenant-page-heading h1 {
+    font-size: 1.2rem;
+  }
+
+  .tenant-page-heading p {
+    font-size: 0.78rem;
+  }
+
+  .tenant-page-content-inner {
+    padding-bottom: 20px;
+  }
+
+  .tenant-section-heading {
+    align-items: flex-start;
+  }
+
+  .tenant-section-heading .btn {
+    padding: 7px 9px;
+    font-size: 0.75rem;
+    white-space: nowrap;
+  }
+
+  .tenant-quick-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 9px;
+  }
+
+  .tenant-quick-actions button {
+    padding: 12px;
+  }
+
+  .tenant-quick-actions button strong {
+    font-size: 0.82rem;
+  }
+}
+
+@media (max-width: 360px) {
+  .tenant-quick-actions {
+    grid-template-columns: 1fr 1fr;
+    gap: 7px;
+  }
+
+  .tenant-quick-actions button {
+    padding: 10px;
+  }
+}
