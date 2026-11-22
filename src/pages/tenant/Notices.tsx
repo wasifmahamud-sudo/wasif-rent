@@ -21,17 +21,28 @@ export default function TenantNotices() {
     loadNotices()
   }, [])
 
+  function getLocalDate() {
+    const now = new Date()
+    const year = now.getFullYear()
+    const month = String(now.getMonth() + 1).padStart(2, '0')
+    const day = String(now.getDate()).padStart(2, '0')
+
+    return `${year}-${month}-${day}`
+  }
+
   async function loadNotices() {
     setLoading(true)
     setError('')
 
     try {
-      const today = new Date().toISOString().slice(0, 10)
+      const now = new Date().toISOString()
+      const today = getLocalDate()
 
       const { data, error: noticeError } = await supabase
         .from('notices')
         .select('id, title, body, is_important, published_at, expiry_date')
-        .lte('published_at', new Date().toISOString())
+        .eq('is_active', true)
+        .lte('published_at', now)
         .order('published_at', { ascending: false })
 
       if (noticeError) throw noticeError
@@ -63,35 +74,39 @@ export default function TenantNotices() {
   function isNew(date: string) {
     const published = new Date(date).getTime()
     const days = (Date.now() - published) / (1000 * 60 * 60 * 24)
+
     return days >= 0 && days <= 7
   }
 
-  if (loading) {
-    return (
-      <div className="page-content">
-        <div className="card">নোটিশ লোড হচ্ছে...</div>
-      </div>
-    )
-  }
-
   return (
-    <div className="page-content">
-      <div className="page-header">
+    <div className="tenant-page-content-inner">
+      <div className="tenant-page-heading">
         <div>
           <h2>Notice Board</h2>
           <p>বাড়ির সকল ঘোষণা ও গুরুত্বপূর্ণ নোটিশ</p>
         </div>
 
-        <button className="btn btn-secondary" onClick={loadNotices}>
-          Refresh
+        <button
+          type="button"
+          className="btn btn-secondary"
+          onClick={loadNotices}
+          disabled={loading}
+        >
+          {loading ? 'Loading...' : '↻ Refresh'}
         </button>
       </div>
 
       {error && (
-        <div className="alert alert-error">{error}</div>
+        <div className="alert alert-error">
+          {error}
+        </div>
       )}
 
-      {notices.length === 0 ? (
+      {loading ? (
+        <div className="card">
+          <p>নোটিশ লোড হচ্ছে...</p>
+        </div>
+      ) : notices.length === 0 ? (
         <div className="card empty-state">
           <h3>No Notices</h3>
           <p>এই মুহূর্তে কোনো প্রকাশিত নোটিশ নেই।</p>
@@ -118,8 +133,11 @@ export default function TenantNotices() {
                       Important
                     </span>
                   )}
+
                   {isNew(notice.published_at) && (
-                    <span className="status-badge paid">NEW</span>
+                    <span className="status-badge paid">
+                      NEW
+                    </span>
                   )}
                 </div>
               </div>
@@ -132,6 +150,7 @@ export default function TenantNotices() {
 
               {notice.body.length > 180 && (
                 <button
+                  type="button"
                   className="btn btn-secondary"
                   onClick={() =>
                     setExpandedId(
