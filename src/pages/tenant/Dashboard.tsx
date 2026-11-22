@@ -1,7 +1,7 @@
+
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
-import { useTheme } from '../../contexts/ThemeContext'
 import { supabase } from '../../lib/supabase'
 import { fmtBDT, formatMonth } from '../../lib/calculations'
 import type { Bill, Payment } from '../../types/database'
@@ -29,9 +29,17 @@ type BillHistory = Pick<
   | 'previous_due'
 >
 
+type Notice = {
+  id: string
+  title: string
+  body: string
+  is_important: boolean
+  published_at: string
+  expiry_date: string | null
+}
+
 export default function TenantDashboard() {
-  const { profile, signOut } = useAuth()
-  const { theme, toggle } = useTheme()
+  const { profile } = useAuth()
   const navigate = useNavigate()
 
   const [bill, setBill] = useState<Bill | null>(null)
@@ -46,19 +54,7 @@ export default function TenantDashboard() {
   const [nagad, setNagad] = useState('')
   const [bank, setBank] = useState('')
   const [payNote, setPayNote] = useState('')
-  const [tenantId, setTenantId] = useState<string | null>(null)
-  const [notices, setNotices] = useState<
-    { id: string; title: string; body: string; is_important: boolean; published_at: string; expiry_date: string | null }[]
-  >([])
-  const [myComplaints, setMyComplaints] = useState<
-    { id: string; subject: string; category: string; description: string; status: string; admin_reply: string | null; created_at: string }[]
-  >([])
-  const [cSubject, setCSubject] = useState('')
-  const [cCategory, setCCategory] = useState('Other')
-  const [cDesc, setCDesc] = useState('')
-  const [cPhoto, setCPhoto] = useState('')
-  const [cSaving, setCSaving] = useState(false)
-  const [cMsg, setCMsg] = useState('')
+  const [notices, setNotices] = useState<Notice[]>([])
   const [expandedNoticeId, setExpandedNoticeId] = useState<string | null>(null)
 
   useEffect(() => {
@@ -68,14 +64,20 @@ export default function TenantDashboard() {
   async function loadData() {
     setLoading(true)
     setError('')
+
     try {
       const { data: settings } = await supabase
         .from('settings')
         .select('key, value')
         .in('key', ['bkash_number', 'nagad_number', 'bank_account', 'payment_note'])
+
       if (settings) {
         settings.forEach((s) => {
-          const v = typeof s.value === 'string' ? s.value.replace(/^"|"$/g, '') : String(s.value ?? '')
+          const v =
+            typeof s.value === 'string'
+              ? s.value.replace(/^"|"$/g, '')
+              : String(s.value ?? '')
+
           if (s.key === 'bkash_number') setBkash(v)
           if (s.key === 'nagad_number') setNagad(v)
           if (s.key === 'bank_account') setBank(v)
@@ -84,6 +86,12 @@ export default function TenantDashboard() {
       }
 
       const uid = (await supabase.auth.getUser()).data.user?.id
+
+      if (!uid) {
+        setError('আপনার অ্যাকাউন্ট পাওয়া যায়নি। আবার লগইন করুন।')
+        return
+      }
+
       const { data: tenant, error: tErr } = await supabase
         .from('tenants')
         .select('id, room_id, full_name, deposit')
@@ -93,55 +101,37 @@ export default function TenantDashboard() {
 
       if (tErr || !tenant) {
         setError('আপনার টেন্যান্ট অ্যাকাউন্ট লিংক করা হয়নি। অ্যাডমিনের সাথে যোগাযোগ করুন।')
-        setLoading(false)
         return
       }
 
-      if (tenant.deposit != null) setDeposit(Number(tenant.deposit))
-      setTenantId(tenant.id)
+      if (tenant.deposit != null) {
+        setDeposit(Number(tenant.deposit))
+      }
 
+      // Notices
       const { data: noticeData } = await supabase
         .from('notices')
         .select('id, title, body, is_important, published_at, expiry_date')
         .eq('is_active', true)
         .order('published_at', { ascending: false })
         .limit(20)
+
       const today = new Date().toISOString().slice(0, 10)
+
       setNotices(
-        ((noticeData || []) as {
-          id: string
-          title: string
-          body: string
-          is_important: boolean
-          published_at: string
-          expiry_date: string | null
-        }[]).filter((n) => !n.expiry_date || n.expiry_date >= today)
+        ((noticeData || []) as Notice[]).filter(
+          (n) => !n.expiry_date || n.expiry_date >= today
+        )
       )
 
-      const { data: compData } = await supabase
-        .from('complaints')
-        .select('id, subject, category, description, status, admin_reply, created_at')
-        .eq('tenant_id', tenant.id)
-        .order('created_at', { ascending: false })
-        .limit(30)
-      setMyComplaints(
-        (compData as {
-          id: string
-          subject: string
-          category: string
-          description: string
-          status: string
-          admin_reply: string | null
-          created_at: string
-        }[]) || []
-      )
-
+      // Room and electricity readings
       if (tenant.room_id) {
         const { data: room } = await supabase
           .from('rooms')
           .select('room_number')
           .eq('id', tenant.room_id)
           .single()
+
         if (room) setRoomNumber(room.room_number)
 
         const { data: mr } = await supabase
@@ -150,9 +140,11 @@ export default function TenantDashboard() {
           .eq('room_id', tenant.room_id)
           .order('billing_month', { ascending: false })
           .limit(6)
+
         setMeters(mr || [])
       }
 
+      // Current month bill
       const now = new Date()
       const thisMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
 
@@ -163,6 +155,7 @@ export default function TenantDashboard() {
         .eq('billing_month', thisMonth)
         .maybeSingle()
 
+      // Bill history
       const { data: allBills } = await supabase
         .from('bills')
         .select(
@@ -175,91 +168,53 @@ export default function TenantDashboard() {
       setBillHistory(allBills || [])
       setBill(thisMonthBill || (allBills && allBills[0]) || null)
 
+      // Payment history
       const { data: pays } = await supabase
         .from('payments')
         .select('*')
         .eq('tenant_id', tenant.id)
         .order('payment_date', { ascending: false })
         .limit(30)
+
       setPayments(pays || [])
     } catch (e: any) {
-      setError(e.message || 'ডেটা লোড করতে সমস্যা')
+      setError(e.message || 'ডেটা লোড করতে সমস্যা হয়েছে')
     } finally {
       setLoading(false)
     }
   }
 
-  const submitComplaint = async () => {
-    if (!tenantId) {
-      setCMsg('টেন্যান্ট অ্যাকাউন্ট লিংক নেই')
-      return
-    }
-    if (!cSubject.trim() || !cDesc.trim()) {
-      setCMsg('Subject ও Description দিন')
-      return
-    }
-    setCSaving(true)
-    setCMsg('')
-    const { error: cErr } = await supabase.from('complaints').insert({
-      tenant_id: tenantId,
-      subject: cSubject.trim(),
-      category: cCategory,
-      description: cDesc.trim(),
-      photo_url: cPhoto.trim() || null,
-      status: 'New',
-    })
-    setCSaving(false)
-    if (cErr) {
-      setCMsg(cErr.message)
-      return
-    }
-    setCSubject('')
-    setCDesc('')
-    setCPhoto('')
-    setCCategory('Other')
-    setCMsg('Complaint জমা হয়েছে')
-    const { data: compData } = await supabase
-      .from('complaints')
-      .select('id, subject, category, description, status, admin_reply, created_at')
-      .eq('tenant_id', tenantId)
-      .order('created_at', { ascending: false })
-      .limit(30)
-    setMyComplaints(
-      (compData as {
-        id: string
-        subject: string
-        category: string
-        description: string
-        status: string
-        admin_reply: string | null
-        created_at: string
-      }[]) || []
-    )
-  }
-
-  const handleLogout = async () => {
-    await signOut()
-    navigate('/login')
-  }
-
   function unitsFor(m: MeterRow): number | null {
-    if (m.units_used != null && !Number.isNaN(Number(m.units_used))) return Number(m.units_used)
+    if (m.units_used != null && !Number.isNaN(Number(m.units_used))) {
+      return Number(m.units_used)
+    }
+
     if (m.current_reading != null && m.previous_reading != null) {
       const u = Number(m.current_reading) - Number(m.previous_reading)
       return u >= 0 ? u : null
     }
+
     return null
   }
 
   function usageDelta(idx: number): { text: string; up: boolean | null } {
-    if (idx >= meters.length - 1) return { text: '—', up: null }
+    if (idx >= meters.length - 1) {
+      return { text: '—', up: null }
+    }
+
     const cur = unitsFor(meters[idx])
     const prev = unitsFor(meters[idx + 1])
-    if (cur == null || prev == null) return { text: 'Reading unavailable', up: null }
+
+    if (cur == null || prev == null) {
+      return { text: 'Reading unavailable', up: null }
+    }
+
     const d = cur - prev
-    if (d === 0) return { text: 'Same as previous month', up: null }
-    if (d > 0) return { text: `+${d} units vs previous`, up: true }
-    return { text: `${d} units vs previous`, up: false }
+
+    if (d === 0) return { text: 'আগের মাসের সমান', up: null }
+    if (d > 0) return { text: `আগের মাসের চেয়ে ${d} ইউনিট বেশি`, up: true }
+
+    return { text: `আগের মাসের চেয়ে ${Math.abs(d)} ইউনিট কম`, up: false }
   }
 
   if (loading) {
@@ -271,68 +226,65 @@ export default function TenantDashboard() {
     )
   }
 
+  const importantNotices = notices.filter((n) => n.is_important)
+  const previewNotices = [
+    ...importantNotices,
+    ...notices.filter((n) => !n.is_important),
+  ].slice(0, 3)
+
   return (
     <div>
-      <div className="app-header">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-          <div style={{ minWidth: 0 }}>
-            <h1 style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {profile?.full_name || 'Tenant'}
-            </h1>
-            <div className="sub">{roomNumber ? `Room: ${roomNumber}` : 'Tenant Portal'} · Read-only</div>
-          </div>
-          <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
-            <button type="button" className="btn btn-outline" onClick={toggle} style={{ padding: '8px 10px' }}>
-              {theme === 'dark' ? '☀️' : '🌙'}
-            </button>
-            <button type="button" className="btn btn-outline" onClick={handleLogout} style={{ padding: '8px 12px' }}>
-              Logout
-            </button>
-          </div>
+      <div className="tenant-page-heading">
+        <div>
+          <h1>স্বাগতম, {profile?.full_name || 'Tenant'}!</h1>
+          <p>
+            {roomNumber ? `Room: ${roomNumber}` : 'আপনার Tenant Dashboard'}
+            {' · '}
+            আপনার ভাড়া ও পেমেন্টের তথ্য
+          </p>
         </div>
       </div>
 
-      <div className="page-content">
-        {error && <div className="login-error" style={{ marginBottom: 16 }}>{error}</div>}
+      <div className="tenant-page-content-inner">
+        {error && (
+          <div className="login-error" style={{ marginBottom: 16 }}>
+            {error}
+          </div>
+        )}
 
-        <div className="grid-2" style={{ marginBottom: 14 }}>
-          <div className="sum-card due">
-            <div className="label">Outstanding</div>
-            <div className="value">৳{fmtBDT(bill?.remaining_due ?? 0)}</div>
-          </div>
-          <div className="sum-card green">
-            <div className="label">Paid (this bill)</div>
-            <div className="value">৳{fmtBDT(bill?.amount_paid ?? 0)}</div>
-          </div>
-          {deposit != null && (
-            <div className="sum-card blue">
-              <div className="label">Deposit</div>
-              <div className="value">৳{fmtBDT(deposit)}</div>
+        {/* Important Notice */}
+        <div className="card tenant-notice-highlight" style={{ marginBottom: 18 }}>
+          <div className="tenant-section-heading">
+            <div>
+              <div style={{ fontWeight: 800, fontSize: '1rem' }}>
+                📢 Notice Board
+              </div>
+              <div style={{ color: 'var(--muted)', fontSize: '0.78rem', marginTop: 3 }}>
+                গুরুত্বপূর্ণ ঘোষণা ও সর্বশেষ নোটিশ
+              </div>
             </div>
-          )}
-          <div className="sum-card orange">
-            <div className="label">Status</div>
-            <div className="value" style={{ fontSize: '1rem', textTransform: 'capitalize' }}>
-              {bill?.status || '—'}
-            </div>
-          </div>
-        </div>
 
-        <div className="card" style={{ marginBottom: 16, padding: '12px 14px' }}>
-          <div style={{ fontWeight: 800, color: 'var(--primary)', marginBottom: 8, fontSize: '0.95rem' }}>
-            📢 Notices
-            {notices.length > 0 && (
-              <span style={{ marginLeft: 8, fontSize: '0.72rem', color: 'var(--muted)', fontWeight: 600 }}>
-                ({notices.length})
-              </span>
-            )}
+            <button
+              type="button"
+              className="btn btn-outline"
+              onClick={() => navigate('/tenant/notices')}
+            >
+              সব দেখুন →
+            </button>
           </div>
-          {notices.length === 0 ? (
-            <div style={{ fontSize: '0.82rem', color: 'var(--muted)', padding: '4px 0' }}>কোনো নতুন notice নেই</div>
+
+          {previewNotices.length === 0 ? (
+            <div className="empty" style={{ padding: 14 }}>
+              বর্তমানে কোনো নতুন নোটিশ নেই।
+            </div>
           ) : (
-            notices.map((n) => {
-              const isNew = Date.now() - new Date(n.published_at).getTime() < 7 * 24 * 60 * 60 * 1000
+            previewNotices.map((n) => {
+              const isNew =
+                Date.now() - new Date(n.published_at).getTime() <
+                7 * 24 * 60 * 60 * 1000
+
               const open = expandedNoticeId === n.id
+
               return (
                 <button
                   key={n.id}
@@ -345,43 +297,71 @@ export default function TenantDashboard() {
                     border: 'none',
                     borderBottom: '1px solid var(--border)',
                     background: open ? 'rgba(15,60,110,0.06)' : 'transparent',
-                    padding: '10px 4px',
+                    padding: '12px 8px',
                     cursor: 'pointer',
-                    borderLeft: n.is_important ? '3px solid var(--danger)' : '3px solid transparent',
-                    paddingLeft: 8,
-                    borderRadius: 6,
-                    color: 'inherit',
+                    borderLeft: n.is_important
+                      ? '4px solid var(--danger)'
+                      : '4px solid var(--border)',
+                    borderRadius: 7,
+                    color: 'var(--text)',
                     fontFamily: 'inherit',
                   }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                    <div style={{ fontWeight: 800, fontSize: '0.88rem' }}>
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: 8,
+                    }}
+                  >
+                    <div style={{ fontWeight: 800, fontSize: '0.9rem' }}>
                       {n.is_important ? '⭐ ' : ''}
                       {n.title}
+
                       {isNew && (
                         <span
                           style={{
-                            marginLeft: 6,
-                            fontSize: '0.6rem',
+                            marginLeft: 7,
+                            fontSize: '0.62rem',
                             background: 'var(--danger)',
                             color: '#fff',
-                            padding: '1px 5px',
+                            padding: '2px 6px',
                             borderRadius: 5,
-                            fontWeight: 700,
                           }}
                         >
                           NEW
                         </span>
                       )}
                     </div>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--muted)' }}>{open ? '▲' : '▼'}</span>
+
+                    <span style={{ color: 'var(--muted)', fontSize: '0.75rem' }}>
+                      {open ? '▲' : '▼'}
+                    </span>
                   </div>
-                  <div style={{ fontSize: '0.68rem', color: 'var(--muted)', marginTop: 2 }}>
+
+                  <div
+                    style={{
+                      fontSize: '0.7rem',
+                      color: 'var(--muted)',
+                      marginTop: 4,
+                    }}
+                  >
                     {new Date(n.published_at).toLocaleDateString()}
-                    {!open && n.body ? ` · ${n.body.slice(0, 40)}${n.body.length > 40 ? '…' : ''}` : ''}
+                    {!open && n.body
+                      ? ` · ${n.body.slice(0, 65)}${n.body.length > 65 ? '…' : ''}`
+                      : ''}
                   </div>
+
                   {open && (
-                    <div style={{ marginTop: 8, whiteSpace: 'pre-wrap', fontSize: '0.88rem', lineHeight: 1.45 }}>
+                    <div
+                      style={{
+                        marginTop: 9,
+                        whiteSpace: 'pre-wrap',
+                        fontSize: '0.88rem',
+                        lineHeight: 1.6,
+                      }}
+                    >
                       {n.body}
                     </div>
                   )}
@@ -389,144 +369,418 @@ export default function TenantDashboard() {
               )
             })
           )}
+
+          {notices.length > 3 && (
+            <button
+              type="button"
+              className="btn btn-outline"
+              style={{ marginTop: 12, width: '100%' }}
+              onClick={() => navigate('/tenant/notices')}
+            >
+              আরও {notices.length - 3}টি নোটিশ দেখুন
+            </button>
+          )}
         </div>
 
+        {/* Quick Actions */}
+        <div className="card" style={{ marginBottom: 18 }}>
+          <div style={{ fontWeight: 800, marginBottom: 12 }}>
+            ⚡ Quick Actions
+          </div>
+
+          <div className="tenant-quick-actions">
+            <button type="button" onClick={() => navigate('/tenant/bills')}>
+              <span>🧾</span>
+              <strong>My Bills</strong>
+              <small>বিল দেখুন</small>
+            </button>
+
+            <button type="button" onClick={() => navigate('/tenant/payments')}>
+              <span>💰</span>
+              <strong>Payments</strong>
+              <small>পেমেন্ট হিস্ট্রি</small>
+            </button>
+
+            <button type="button" onClick={() => navigate('/tenant/receipts')}>
+              <span>📄</span>
+              <strong>Receipts</strong>
+              <small>রসিদ ও PDF</small>
+            </button>
+
+            <button type="button" onClick={() => navigate('/tenant/complaints')}>
+              <span>🛠️</span>
+              <strong>Complaints</strong>
+              <small>সমস্যা জানান</small>
+            </button>
+
+            <button type="button" onClick={() => navigate('/tenant/notices')}>
+              <span>📢</span>
+              <strong>Notices</strong>
+              <small>সব ঘোষণা</small>
+            </button>
+
+            <button type="button" onClick={() => navigate('/tenant/profile')}>
+              <span>👤</span>
+              <strong>My Profile</strong>
+              <small>প্রোফাইল দেখুন</small>
+            </button>
+          </div>
+        </div>
+
+        {/* Summary Cards */}
+        <div className="grid-2" style={{ marginBottom: 18 }}>
+          <div className="sum-card due">
+            <div className="label">Outstanding</div>
+            <div className="value">
+              ৳{fmtBDT(bill?.remaining_due ?? 0)}
+            </div>
+          </div>
+
+          <div className="sum-card green">
+            <div className="label">Paid (Selected Bill)</div>
+            <div className="value">
+              ৳{fmtBDT(bill?.amount_paid ?? 0)}
+            </div>
+          </div>
+
+          {deposit != null && (
+            <div className="sum-card blue">
+              <div className="label">Deposit</div>
+              <div className="value">৳{fmtBDT(deposit)}</div>
+            </div>
+          )}
+
+          <div className="sum-card orange">
+            <div className="label">Bill Status</div>
+            <div
+              className="value"
+              style={{ fontSize: '1rem', textTransform: 'capitalize' }}
+            >
+              {bill?.status || '—'}
+            </div>
+          </div>
+        </div>
+
+        {/* Payment Information */}
         {(bkash || nagad || bank) && (
-          <div className="card" style={{ marginBottom: 16 }}>
-            <div style={{ fontWeight: 800, color: 'var(--primary)', marginBottom: 10 }}>💳 টাকা পাঠাবেন এখানে</div>
+          <div className="card" style={{ marginBottom: 18 }}>
+            <div
+              style={{
+                fontWeight: 800,
+                color: 'var(--primary)',
+                marginBottom: 10,
+              }}
+            >
+              💳 টাকা পাঠানোর তথ্য
+            </div>
+
             {bkash && (
               <div className="bill-row">
                 <span>bKash</span>
-                <span style={{ fontWeight: 800 }}>{bkash}</span>
+                <strong>{bkash}</strong>
               </div>
             )}
+
             {nagad && (
               <div className="bill-row">
                 <span>Nagad</span>
-                <span style={{ fontWeight: 800 }}>{nagad}</span>
+                <strong>{nagad}</strong>
               </div>
             )}
+
             {bank && (
               <div className="bill-row">
                 <span>Bank</span>
-                <span style={{ fontWeight: 700, textAlign: 'right', maxWidth: '60%' }}>{bank}</span>
+                <strong style={{ textAlign: 'right', maxWidth: '60%' }}>
+                  {bank}
+                </strong>
               </div>
             )}
+
             {payNote && (
-              <div style={{ fontSize: '0.78rem', color: 'var(--muted)', marginTop: 10, lineHeight: 1.45, fontWeight: 600 }}>
+              <div
+                style={{
+                  fontSize: '0.78rem',
+                  color: 'var(--muted)',
+                  marginTop: 10,
+                  lineHeight: 1.5,
+                }}
+              >
                 {payNote}
               </div>
             )}
           </div>
         )}
 
+        {/* Current Bill */}
         {bill ? (
-          <div className="bill-card" style={{ marginBottom: 16 }}>
-            <div className="bill-header">Current Bill — {formatMonth(bill.billing_month)}</div>
+          <div className="bill-card" style={{ marginBottom: 18 }}>
+            <div className="bill-header">
+              Current Bill — {formatMonth(bill.billing_month)}
+            </div>
+
             <div className="bill-row">
               <span>Room</span>
-              <span style={{ fontWeight: 700 }}>{roomNumber || '—'}</span>
+              <strong>{roomNumber || '—'}</strong>
             </div>
+
             <div className="bill-row">
               <span>Monthly Rent</span>
               <span>৳{fmtBDT(bill.rent_amount)}</span>
             </div>
+
             <div className="bill-row">
               <span>Electricity Units</span>
               <span>{bill.electricity_units} Units</span>
             </div>
+
             <div className="bill-row">
               <span>Rate</span>
               <span>৳{fmtBDT(bill.electricity_rate)}/unit</span>
             </div>
+
             <div className="bill-row">
               <span>Electricity Bill</span>
               <span>৳{fmtBDT(bill.electricity_amount)}</span>
             </div>
+
             <div className="bill-row">
               <span>Previous Due</span>
               <span>৳{fmtBDT(bill.previous_due)}</span>
             </div>
+
             <div className="bill-row total">
-              <span>Total Bill</span>
-              <span>৳{fmtBDT(bill.total_bill)}</span>
+              <strong>Total Bill</strong>
+              <strong>৳{fmtBDT(bill.total_bill)}</strong>
             </div>
+
             <div className="bill-row paid-row">
               <span>Paid</span>
               <span>৳{fmtBDT(bill.amount_paid)}</span>
             </div>
-            <div className={`bill-row ${Number(bill.remaining_due) > 0 ? 'due-row' : 'paid-row'}`}>
-              <span>Remaining Due</span>
-              <span>৳{fmtBDT(bill.remaining_due)}</span>
+
+            <div
+              className={`bill-row ${
+                Number(bill.remaining_due) > 0 ? 'due-row' : 'paid-row'
+              }`}
+            >
+              <strong>Remaining Due</strong>
+              <strong>৳{fmtBDT(bill.remaining_due)}</strong>
             </div>
+
+            <button
+              type="button"
+              className="btn btn-primary"
+              style={{ marginTop: 14, width: '100%' }}
+              onClick={() => navigate('/tenant/bills')}
+            >
+              View Bill Details →
+            </button>
           </div>
         ) : (
-          !error && <div className="empty" style={{ marginBottom: 16 }}>এখনো কোনো বিল তৈরি হয়নি</div>
+          !error && (
+            <div className="empty" style={{ marginBottom: 18 }}>
+              এখনো কোনো বিল তৈরি হয়নি
+            </div>
+          )
         )}
 
-        <div className="card" style={{ marginBottom: 16 }}>
-          <div style={{ fontWeight: 800, color: 'var(--primary)', marginBottom: 10 }}>⚡ My Electricity Usage</div>
+        {/* Electricity Usage */}
+        <div className="card" style={{ marginBottom: 18 }}>
+          <div
+            style={{
+              fontWeight: 800,
+              color: 'var(--primary)',
+              marginBottom: 10,
+            }}
+          >
+            ⚡ My Electricity Usage
+          </div>
+
           {meters.length > 0 ? (
             meters.map((m, idx) => {
               const units = unitsFor(m)
               const delta = usageDelta(idx)
+
               return (
-                <div key={m.id} style={{ borderBottom: '1px solid var(--border)', padding: '10px 0' }}>
-                  <div style={{ fontWeight: 700 }}>{formatMonth(m.billing_month)}</div>
-                  <div style={{ fontSize: '0.82rem', marginTop: 4 }}>
-                    Prev: <strong>{m.previous_reading ?? '—'}</strong> · New: <strong>{m.current_reading ?? '—'}</strong> ·
-                    Units: <strong>{units ?? '—'}</strong>
+                <div
+                  key={m.id}
+                  style={{
+                    borderBottom: '1px solid var(--border)',
+                    padding: '11px 0',
+                  }}
+                >
+                  <div style={{ fontWeight: 700 }}>
+                    {formatMonth(m.billing_month)}
                   </div>
-                  <div style={{ fontSize: '0.72rem', color: 'var(--muted)', marginTop: 2 }}>{delta.text}</div>
+
+                  <div style={{ fontSize: '0.82rem', marginTop: 5 }}>
+                    Previous Reading:{' '}
+                    <strong>{m.previous_reading ?? '—'}</strong>
+                    {' · '}
+                    Current Reading:{' '}
+                    <strong>{m.current_reading ?? '—'}</strong>
+                  </div>
+
+                  <div style={{ fontSize: '0.82rem', marginTop: 4 }}>
+                    Units Used: <strong>{units ?? '—'}</strong>
+                  </div>
+
+                  <div
+                    style={{
+                      fontSize: '0.72rem',
+                      color: 'var(--muted)',
+                      marginTop: 3,
+                    }}
+                  >
+                    {delta.text}
+                  </div>
                 </div>
               )
             })
           ) : (
-            <div className="empty" style={{ padding: 12 }}>No usage data</div>
+            <div className="empty" style={{ padding: 12 }}>
+              এখনো বিদ্যুতের রিডিং পাওয়া যায়নি
+            </div>
           )}
         </div>
 
+        {/* Bill History */}
         {billHistory.length > 1 && (
-          <div className="card" style={{ marginBottom: 16 }}>
-            <div style={{ fontWeight: 800, color: 'var(--primary)', marginBottom: 10 }}>📋 Bill history</div>
+          <div className="card" style={{ marginBottom: 18 }}>
+            <div
+              style={{
+                fontWeight: 800,
+                color: 'var(--primary)',
+                marginBottom: 10,
+              }}
+            >
+              📋 Bill History
+            </div>
+
             {billHistory.map((b) => (
-              <div key={b.id} className="bill-row" style={{ padding: '10px 0' }}>
+              <div
+                key={b.id}
+                className="bill-row"
+                style={{ padding: '11px 0' }}
+              >
                 <div>
-                  <div style={{ fontWeight: 700 }}>{formatMonth(b.billing_month)}</div>
-                  <div style={{ fontSize: '0.72rem', color: 'var(--muted)' }}>
-                    Rent ৳{fmtBDT(b.rent_amount)} · EC ৳{fmtBDT(b.electricity_amount)}
+                  <div style={{ fontWeight: 700 }}>
+                    {formatMonth(b.billing_month)}
+                  </div>
+
+                  <div
+                    style={{
+                      fontSize: '0.72rem',
+                      color: 'var(--muted)',
+                    }}
+                  >
+                    Rent ৳{fmtBDT(b.rent_amount)}
+                    {' · '}
+                    Electricity ৳{fmtBDT(b.electricity_amount)}
                   </div>
                 </div>
-                <div style={{ textAlign: 'right', fontWeight: 800 }}>Due ৳{fmtBDT(b.remaining_due)}</div>
+
+                <div style={{ textAlign: 'right', fontWeight: 800 }}>
+                  Due ৳{fmtBDT(b.remaining_due)}
+                </div>
               </div>
             ))}
+
+            <button
+              type="button"
+              className="btn btn-outline"
+              style={{ width: '100%', marginTop: 12 }}
+              onClick={() => navigate('/tenant/bills')}
+            >
+              View All Bills →
+            </button>
           </div>
         )}
 
-        <div className="card" style={{ marginBottom: 16 }}>
-          <div style={{ fontWeight: 800, color: 'var(--primary)', marginBottom: 10 }}>💰 Payment history</div>
+        {/* Recent Payments */}
+        <div className="card" style={{ marginBottom: 18 }}>
+          <div
+            style={{
+              fontWeight: 800,
+              color: 'var(--primary)',
+              marginBottom: 10,
+            }}
+          >
+            💰 Recent Payments
+          </div>
+
           {payments.length === 0 ? (
-            <div className="empty" style={{ padding: 12 }}>No payments yet</div>
+            <div className="empty" style={{ padding: 12 }}>
+              এখনো কোনো পেমেন্ট পাওয়া যায়নি
+            </div>
           ) : (
-            payments.map((p) => (
-              <div key={p.id} className="bill-row" style={{ padding: '10px 0' }}>
+            payments.slice(0, 5).map((p) => (
+              <div
+                key={p.id}
+                className="bill-row"
+                style={{ padding: '10px 0' }}
+              >
                 <div>
-                  <div style={{ fontWeight: 700 }}>{p.payment_date}</div>
-                  <div style={{ fontSize: '0.72rem', color: 'var(--muted)' }}>{p.payment_method}</div>
+                  <div style={{ fontWeight: 700 }}>
+                    {p.payment_date}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: '0.72rem',
+                      color: 'var(--muted)',
+                    }}
+                  >
+                    {p.payment_method}
+                  </div>
                 </div>
-                <div style={{ fontWeight: 800, color: 'var(--accent)' }}>৳{fmtBDT(p.amount)}</div>
+
+                <div
+                  style={{
+                    fontWeight: 800,
+                    color: 'var(--accent)',
+                  }}
+                >
+                  ৳{fmtBDT(p.amount)}
+                </div>
               </div>
             ))
           )}
+
+          {payments.length > 0 && (
+            <button
+              type="button"
+              className="btn btn-outline"
+              style={{ width: '100%', marginTop: 12 }}
+              onClick={() => navigate('/tenant/payments')}
+            >
+              View All Payments →
+            </button>
+          )}
         </div>
 
-        <div className="card" style={{ marginBottom: 16 }}>
-          <div style={{ fontWeight: 800, color: 'var(--primary)', marginBottom: 8 }}>
+        {/* Payment Receipts */}
+        <div className="card" style={{ marginBottom: 24 }}>
+          <div
+            style={{
+              fontWeight: 800,
+              color: 'var(--primary)',
+              marginBottom: 8,
+            }}
+          >
             🧾 Payment Receipts
           </div>
-          <div style={{ fontSize: '0.82rem', color: 'var(--muted)', marginBottom: 12 }}>
-            আপনার সব পেমেন্টের রসিদ দেখুন এবং PDF ডাউনলোড করুন।
+
+          <div
+            style={{
+              fontSize: '0.82rem',
+              color: 'var(--muted)',
+              marginBottom: 12,
+            }}
+          >
+            আপনার পেমেন্টের রসিদ দেখুন এবং PDF ডাউনলোড করুন।
           </div>
+
           <button
             type="button"
             className="btn btn-primary"
@@ -534,71 +788,6 @@ export default function TenantDashboard() {
           >
             View My Receipts →
           </button>
-        </div>
-
-        <div className="card" style={{ marginBottom: 16 }}>
-          <div style={{ fontWeight: 800, color: 'var(--primary)', marginBottom: 10 }}>🛠️ Complaint Box</div>
-          <div className="field">
-            <label>Subject</label>
-            <input value={cSubject} onChange={(e) => setCSubject(e.target.value)} placeholder="সমস্যার শিরোনাম" />
-          </div>
-          <div className="field">
-            <label>Category</label>
-            <select value={cCategory} onChange={(e) => setCCategory(e.target.value)}>
-              {['Water', 'Electricity', 'Plumbing', 'Bathroom', 'Maintenance', 'Security', 'Other'].map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="field">
-            <label>Description</label>
-            <textarea
-              rows={3}
-              value={cDesc}
-              onChange={(e) => setCDesc(e.target.value)}
-              placeholder="বিস্তারিত..."
-              style={{
-                width: '100%',
-                padding: 11,
-                borderRadius: 10,
-                border: '1.5px solid var(--border)',
-                background: 'var(--input-bg, var(--yellow))',
-                color: 'var(--input-text, #333)',
-              }}
-            />
-          </div>
-          {cMsg && (
-            <div style={{ marginBottom: 10, fontWeight: 600, color: cMsg.includes('জমা') ? 'var(--accent)' : 'var(--danger)' }}>
-              {cMsg}
-            </div>
-          )}
-          <button type="button" className="btn btn-primary" disabled={cSaving || !tenantId} onClick={submitComplaint}>
-            {cSaving ? 'Submitting...' : 'Submit complaint'}
-          </button>
-        </div>
-
-        <div className="card" style={{ marginBottom: 24 }}>
-          <div style={{ fontWeight: 800, color: 'var(--primary)', marginBottom: 10 }}>My complaints</div>
-          {myComplaints.length === 0 ? (
-            <div className="empty" style={{ padding: 12 }}>এখনো কোনো complaint নেই</div>
-          ) : (
-            myComplaints.map((c) => (
-              <div key={c.id} style={{ borderBottom: '1px solid var(--border)', padding: '10px 0' }}>
-                <div style={{ fontWeight: 800 }}>{c.subject}</div>
-                <div style={{ fontSize: '0.72rem', color: 'var(--muted)' }}>
-                  {c.category} · {c.status}
-                </div>
-                <div style={{ marginTop: 4, fontSize: '0.85rem' }}>{c.description}</div>
-                {c.admin_reply && (
-                  <div style={{ marginTop: 8, padding: 8, borderRadius: 8, background: 'var(--green)', fontSize: '0.85rem' }}>
-                    <strong>Admin:</strong> {c.admin_reply}
-                  </div>
-                )}
-              </div>
-            ))
-          )}
         </div>
       </div>
     </div>
