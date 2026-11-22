@@ -113,10 +113,12 @@ export default function TenantDashboard() {
         .from('notices')
         .select('id, title, body, is_important, published_at, expiry_date')
         .eq('is_active', true)
+        .lte('published_at', new Date().toISOString())
         .order('published_at', { ascending: false })
         .limit(20)
 
-      const today = new Date().toISOString().slice(0, 10)
+      const now = new Date()
+const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
 
       setNotices(
         ((noticeData || []) as Notice[]).filter(
