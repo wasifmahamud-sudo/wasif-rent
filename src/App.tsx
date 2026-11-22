@@ -13,6 +13,7 @@ import AdminNotices from './pages/admin/Notices'
 import AdminComplaints from './pages/admin/Complaints'
 import PaymentReceipts from './pages/admin/PaymentReceipts'
 import TenantDashboard from './pages/tenant/Dashboard'
+import TenantPaymentReceipts from './pages/tenant/PaymentReceipts'
 
 function RootRedirect() {
   const { profile, loading } = useAuth()
@@ -53,7 +54,10 @@ export default function App() {
           <Route path="/admin/payments" element={<AdminPage><PaymentReceipts /></AdminPage>} />
           <Route path="/admin/rooms" element={<AdminPage><AdminBills /></AdminPage>} />
           <Route path="/admin/settings" element={<AdminPage><AdminBills /></AdminPage>} />
+
           <Route path="/tenant" element={<ProtectedRoute role="tenant"><TenantDashboard /></ProtectedRoute>} />
+          <Route path="/tenant/receipts" element={<ProtectedRoute role="tenant"><TenantPaymentReceipts /></ProtectedRoute>} />
+
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>
