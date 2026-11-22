@@ -43,7 +43,7 @@ export default function TenantDashboard() {
   const navigate = useNavigate()
 
   const [bill, setBill] = useState<Bill | null>(null)
-  const [billHistory, setBillHistory] = useState<BillHistory[]>([])
+  const [totalOutstanding, setTotalOutstanding] = useState(0)
   const [payments, setPayments] = useState<Payment[]>([])
   const [meters, setMeters] = useState<MeterRow[]>([])
   const [roomNumber, setRoomNumber] = useState('')
@@ -164,7 +164,19 @@ export default function TenantDashboard() {
         .eq('tenant_id', tenant.id)
         .order('billing_month', { ascending: false })
         .limit(12)
+const { data: outstandingBills, error: outstandingError } = await supabase
+  .from('bills')
+  .select('remaining_due')
+  .eq('tenant_id', tenant.id)
 
+if (outstandingError) throw outstandingError
+
+const outstandingTotal = (outstandingBills || []).reduce(
+  (sum, item) => sum + Math.max(0, Number(item.remaining_due || 0)),
+  0
+)
+
+setTotalOutstanding(outstandingTotal)
       setBillHistory(allBills || [])
       setBill(thisMonthBill || (allBills && allBills[0]) || null)
 
@@ -432,7 +444,7 @@ export default function TenantDashboard() {
           <div className="sum-card due">
             <div className="label">Outstanding</div>
             <div className="value">
-              ৳{fmtBDT(bill?.remaining_due ?? 0)}
+              ৳{fmtBDT(totalOutstanding)}
             </div>
           </div>
 
