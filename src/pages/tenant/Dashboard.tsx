@@ -521,6 +521,22 @@ export default function TenantDashboard() {
         </div>
 
         <div className="card" style={{ marginBottom: 16 }}>
+          <div style={{ fontWeight: 800, color: 'var(--primary)', marginBottom: 8 }}>
+            🧾 Payment Receipts
+          </div>
+          <div style={{ fontSize: '0.82rem', color: 'var(--muted)', marginBottom: 12 }}>
+            আপনার সব পেমেন্টের রসিদ দেখুন এবং PDF ডাউনলোড করুন।
+          </div>
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={() => navigate('/tenant/receipts')}
+          >
+            View My Receipts →
+          </button>
+        </div>
+
+        <div className="card" style={{ marginBottom: 16 }}>
           <div style={{ fontWeight: 800, color: 'var(--primary)', marginBottom: 10 }}>🛠️ Complaint Box</div>
           <div className="field">
             <label>Subject</label>
