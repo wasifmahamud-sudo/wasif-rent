@@ -27,9 +27,10 @@ const menuGroups = [
 export default function TenantShell() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [loggingOut, setLoggingOut] = useState(false)
+
   const navigate = useNavigate()
   const { signOut } = useAuth()
-  const { theme, toggleTheme } = useTheme()
+  const { theme, toggle } = useTheme()
 
   useEffect(() => {
     document.body.classList.toggle('tenant-sidebar-open', sidebarOpen)
@@ -43,8 +44,14 @@ export default function TenantShell() {
     if (loggingOut) return
 
     setLoggingOut(true)
-    await signOut()
-    navigate('/login', { replace: true })
+
+    try {
+      await signOut()
+      navigate('/login', { replace: true })
+    } catch (error) {
+      console.error('Logout failed:', error)
+      setLoggingOut(false)
+    }
   }
 
   function closeSidebar() {
@@ -65,6 +72,7 @@ export default function TenantShell() {
       <aside className={`tenant-sidebar ${sidebarOpen ? 'is-open' : ''}`}>
         <div className="tenant-sidebar-header">
           <div className="tenant-brand-icon">W</div>
+
           <div className="tenant-brand-text">
             <strong>Wasif Rent</strong>
             <span>Tenant Portal</span>
@@ -99,6 +107,7 @@ export default function TenantShell() {
                 >
                   <span className="tenant-menu-icon">{item.icon}</span>
                   <span>{item.label}</span>
+
                   {item.label === 'Notice Board' && (
                     <span className="tenant-menu-arrow">›</span>
                   )}
@@ -112,7 +121,7 @@ export default function TenantShell() {
           <button
             type="button"
             className="tenant-menu-link tenant-theme-button"
-            onClick={toggleTheme}
+            onClick={toggle}
           >
             <span className="tenant-menu-icon">
               {theme === 'dark' ? '☀' : '☾'}
@@ -157,7 +166,7 @@ export default function TenantShell() {
           <button
             type="button"
             className="tenant-topbar-theme"
-            onClick={toggleTheme}
+            onClick={toggle}
             aria-label="Toggle theme"
           >
             {theme === 'dark' ? '☀' : '☾'}
@@ -171,4 +180,3 @@ export default function TenantShell() {
     </div>
   )
 }
-
