@@ -138,7 +138,7 @@ export default function TenantComplaints() {
           category,
           description: description.trim(),
           photo_url: photoUrl,
-          status: 'pending',
+          status: 'New',
         })
 
       if (insertError) throw insertError
