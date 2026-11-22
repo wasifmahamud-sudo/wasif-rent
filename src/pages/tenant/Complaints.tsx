@@ -1,5 +1,6 @@
 
 import { useEffect, useState } from 'react'
+import type { FormEvent } from 'react'
 import { supabase } from '../../lib/supabase'
 
 type Complaint = {
@@ -9,6 +10,7 @@ type Complaint = {
   description: string
   status: string
   admin_reply: string | null
+  photo_url: string | null
   created_at: string
 }
 
@@ -33,8 +35,10 @@ export default function TenantComplaints() {
     setError('')
 
     try {
-      const { data: { user }, error: userError } =
-        await supabase.auth.getUser()
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser()
 
       if (userError || !user) {
         throw new Error('আপনার লগইন তথ্য পাওয়া যায়নি।')
@@ -57,7 +61,9 @@ export default function TenantComplaints() {
 
       const { data, error: complaintError } = await supabase
         .from('complaints')
-        .select('id, subject, category, description, status, admin_reply, created_at')
+        .select(
+          'id, subject, category, description, status, admin_reply, photo_url, created_at'
+        )
         .eq('tenant_id', tenant.id)
         .order('created_at', { ascending: false })
 
@@ -75,7 +81,7 @@ export default function TenantComplaints() {
     }
   }
 
-  async function submitComplaint(e: React.FormEvent<HTMLFormElement>) {
+  async function submitComplaint(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
 
     if (!tenantId || !subject.trim() || !description.trim()) {
@@ -85,14 +91,25 @@ export default function TenantComplaints() {
 
     setSaving(true)
     setMessage('')
+    setError('')
 
     try {
       let photoUrl: string | null = null
 
       if (photo) {
-        const { data: { user } } = await supabase.auth.getUser()
+        const allowedTypes = [
+          'image/jpeg',
+          'image/png',
+          'image/webp',
+        ]
 
-        if (!user) throw new Error('লগইন পাওয়া যায়নি।')
+        if (!allowedTypes.includes(photo.type)) {
+          throw new Error('শুধু JPG, PNG অথবা WebP ছবি দেওয়া যাবে।')
+        }
+
+        if (photo.size > 5 * 1024 * 1024) {
+          throw new Error('ছবির সাইজ ৫ MB-এর কম হতে হবে।')
+        }
 
         const extension = photo.name.split('.').pop()?.toLowerCase() || 'jpg'
         const filePath = `${tenantId}/${Date.now()}.${extension}`
@@ -162,28 +179,37 @@ export default function TenantComplaints() {
 
   if (loading) {
     return (
-      <div className="page-content">
+      <div className="tenant-page-content-inner">
         <div className="card">অভিযোগ লোড হচ্ছে...</div>
       </div>
     )
   }
 
   return (
-    <div className="page-content">
-      <div className="page-header">
+    <div className="tenant-page-content-inner">
+      <div className="tenant-page-heading">
         <div>
-          <h2>Complaint Box</h2>
+          <h1>Complaint Box</h1>
           <p>আপনার সমস্যা বা অভিযোগ সরাসরি Admin-কে জানান</p>
         </div>
 
-        <button className="btn btn-secondary" onClick={loadComplaints}>
+        <button
+          type="button"
+          className="btn btn-secondary"
+          onClick={loadComplaints}
+          disabled={saving}
+        >
           Refresh
         </button>
       </div>
 
-      {error && <div className="alert alert-error">{error}</div>}
+      {error && (
+        <div className="alert alert-error" style={{ marginBottom: 16 }}>
+          {error}
+        </div>
+      )}
 
-      <div className="card">
+      <div className="card" style={{ marginBottom: 20 }}>
         <div className="card-header">
           <h3>Submit New Complaint</h3>
         </div>
@@ -197,6 +223,7 @@ export default function TenantComplaints() {
               onChange={(e) => setSubject(e.target.value)}
               placeholder="অভিযোগের বিষয় লিখুন"
               required
+              maxLength={150}
             />
           </div>
 
@@ -223,6 +250,7 @@ export default function TenantComplaints() {
               placeholder="আপনার সমস্যাটি বিস্তারিত লিখুন..."
               rows={5}
               required
+              maxLength={3000}
             />
           </div>
 
@@ -233,6 +261,13 @@ export default function TenantComplaints() {
               accept="image/jpeg,image/png,image/webp"
               onChange={(e) => {
                 const file = e.target.files?.[0] || null
+
+                if (file && !['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+                  setMessage('শুধু JPG, PNG অথবা WebP ছবি দেওয়া যাবে।')
+                  e.target.value = ''
+                  setPhoto(null)
+                  return
+                }
 
                 if (file && file.size > 5 * 1024 * 1024) {
                   setMessage('ছবির সাইজ ৫ MB-এর কম হতে হবে।')
@@ -245,16 +280,32 @@ export default function TenantComplaints() {
                 setPhoto(file)
               }}
             />
+
             <small>JPG, PNG অথবা WebP। সর্বোচ্চ ৫ MB।</small>
-            {photo && <p>Selected: {photo.name}</p>}
+
+            {photo && (
+              <p style={{ fontSize: '0.82rem', marginTop: 8 }}>
+                <span>Selected: {photo.name}</span>
+              </p>
+            )}
           </div>
 
-          {message && <p>{message}</p>}
+          {message && (
+            <div
+              className="alert"
+              style={{
+                marginBottom: 12,
+                color: message.includes('সফলভাবে') ? 'var(--accent)' : 'var(--danger)',
+              }}
+            >
+              {message}
+            </div>
+          )}
 
           <button
             type="submit"
             className="btn btn-primary"
-            disabled={saving}
+            disabled={saving || !tenantId}
           >
             {saving ? 'Submitting...' : 'Submit Complaint'}
           </button>
@@ -293,10 +344,52 @@ export default function TenantComplaints() {
                   {complaint.description}
                 </p>
 
+                {complaint.photo_url && (
+                  <div style={{ marginTop: 12, marginBottom: 12 }}>
+                    <a
+                      href={complaint.photo_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        color: 'var(--primary)',
+                        fontWeight: 700,
+                        fontSize: '0.85rem',
+                      }}
+                    >
+                      📷 View Attached Photo
+                    </a>
+
+                    <div style={{ marginTop: 10 }}>
+                      <img
+                        src={complaint.photo_url}
+                        alt="Complaint attachment"
+                        loading="lazy"
+                        style={{
+                          display: 'block',
+                          width: '100%',
+                          maxWidth: 320,
+                          maxHeight: 240,
+                          objectFit: 'contain',
+                          borderRadius: 10,
+                          border: '1px solid var(--border)',
+                          background: 'var(--bg)',
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
+
                 {complaint.admin_reply && (
-                  <div className="card">
+                  <div
+                    className="card"
+                    style={{
+                      marginTop: 12,
+                      background: 'var(--bg)',
+                      borderLeft: '4px solid var(--accent)',
+                    }}
+                  >
                     <strong>Admin Reply</strong>
-                    <p style={{ whiteSpace: 'pre-wrap' }}>
+                    <p style={{ whiteSpace: 'pre-wrap', marginBottom: 0 }}>
                       {complaint.admin_reply}
                     </p>
                   </div>
