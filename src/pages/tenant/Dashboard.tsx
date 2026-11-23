@@ -43,6 +43,7 @@ export default function TenantDashboard() {
   const navigate = useNavigate()
 
   const [bill, setBill] = useState<Bill | null>(null)
+  const [billHistory, setBillHistory] = useState<BillHistory[]>([])
   const [totalOutstanding, setTotalOutstanding] = useState(0)
   const [payments, setPayments] = useState<Payment[]>([])
   const [meters, setMeters] = useState<MeterRow[]>([])
@@ -117,7 +118,8 @@ export default function TenantDashboard() {
         .order('published_at', { ascending: false })
         .limit(20)
 
-      npm.cmd run build
+      const now = new Date()
+const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
 const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
 
       setNotices(
