@@ -147,7 +147,7 @@ const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0'
       }
 
       // Current month bill
-      const now = new Date()
+    
       const thisMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
 
       const { data: thisMonthBill } = await supabase
