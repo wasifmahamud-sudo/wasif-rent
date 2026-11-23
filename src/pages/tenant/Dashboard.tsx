@@ -117,7 +117,7 @@ export default function TenantDashboard() {
         .order('published_at', { ascending: false })
         .limit(20)
 
-      const now = new Date()
+      npm.cmd run build
 const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
 
       setNotices(
