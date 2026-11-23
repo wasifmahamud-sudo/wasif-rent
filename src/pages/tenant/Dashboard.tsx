@@ -44,6 +44,7 @@ export default function TenantDashboard() {
 
   const [bill, setBill] = useState<Bill | null>(null)
   const [billHistory, setBillHistory] = useState<BillHistory[]>([])
+  const [billHistory, setBillHistory] = useState<BillHistory[]>([])
   const [totalOutstanding, setTotalOutstanding] = useState(0)
   const [payments, setPayments] = useState<Payment[]>([])
   const [meters, setMeters] = useState<MeterRow[]>([])
