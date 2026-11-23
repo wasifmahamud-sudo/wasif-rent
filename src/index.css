@@ -1199,3 +1199,20 @@ body.tenant-sidebar-open {
     padding: 10px;
   }
 }
+.tenant-payment-mobile-list {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .tenant-payment-mobile-list {
+    display: block;
+  }
+
+  .tenant-payment-mobile-list .card {
+    background: var(--card);
+  }
+
+  .page-content > .card > .table-responsive {
+    display: none;
+  }
+}
