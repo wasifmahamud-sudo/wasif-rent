@@ -37,6 +37,34 @@ type Notice = {
   expiry_date: string | null
 }
 
+function calculateTotalOutstanding(bills: BillHistory[]): number {
+  if (!bills || bills.length === 0) return 0
+
+  const sorted = [...bills].sort((a, b) =>
+    String(a.billing_month).localeCompare(String(b.billing_month))
+  )
+
+  let total = 0
+
+  for (let i = 0; i < sorted.length; i++) {
+    const currentDue = Math.max(0, Number(sorted[i].remaining_due) || 0)
+
+    if (i < sorted.length - 1) {
+      const nextPrevDue = Math.max(0, Number(sorted[i + 1].previous_due) || 0)
+      const carried = Math.min(currentDue, nextPrevDue)
+      const orphan = Math.round((currentDue - carried) * 100) / 100
+
+      if (orphan > 0.009) {
+        total += orphan
+      }
+    } else {
+      total += Math.max(0, currentDue)
+    }
+  }
+
+  return Math.round(total * 100) / 100
+}
+
 export default function TenantDashboard() {
   const { profile } = useAuth()
   const navigate = useNavigate()
@@ -48,6 +76,7 @@ export default function TenantDashboard() {
   const [payments, setPayments] = useState<Payment[]>([])
   const [meters, setMeters] = useState<MeterRow[]>([])
   const [roomNumber, setRoomNumber] = useState('')
+  const [deposit, setDeposit] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [bkash, setBkash] = useState('')
@@ -66,10 +95,12 @@ export default function TenantDashboard() {
     setError('')
 
     try {
-      const { data: settings } = await supabase
+      const { data: settings, error: settingsErr } = await supabase
         .from('settings')
         .select('key, value')
         .in('key', ['bkash_number', 'nagad_number', 'bank_account', 'payment_note'])
+
+      if (settingsErr) throw settingsErr
 
       if (settings) {
         settings.forEach((s) => {
@@ -85,7 +116,10 @@ export default function TenantDashboard() {
         })
       }
 
-      const uid = (await supabase.auth.getUser()).data.user?.id
+      const { data: authData, error: authErr } = await supabase.auth.getUser()
+      if (authErr) throw authErr
+
+      const uid = authData.user?.id
 
       if (!uid) {
         setError('আপনার অ্যাকাউন্ট পাওয়া যায়নি। আবার লগইন করুন।')
@@ -94,7 +128,7 @@ export default function TenantDashboard() {
 
       const { data: tenant, error: tErr } = await supabase
         .from('tenants')
-        .select('id, room_id, full_name')
+        .select('id, room_id, full_name, deposit')
         .eq('user_id', uid)
         .eq('active', true)
         .maybeSingle()
@@ -104,13 +138,19 @@ export default function TenantDashboard() {
         return
       }
 
-      const { data: noticeData } = await supabase
+      if (tenant.deposit != null) {
+        setDeposit(Number(tenant.deposit))
+      }
+
+      const { data: noticeData, error: noticeErr } = await supabase
         .from('notices')
         .select('id, title, body, is_important, published_at, expiry_date')
         .eq('is_active', true)
         .lte('published_at', new Date().toISOString())
         .order('published_at', { ascending: false })
         .limit(20)
+
+      if (noticeErr) throw noticeErr
 
       const now = new Date()
       const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
@@ -122,61 +162,79 @@ export default function TenantDashboard() {
       )
 
       if (tenant.room_id) {
-        const { data: room } = await supabase
+        const { data: room, error: roomErr } = await supabase
           .from('rooms')
           .select('room_number')
           .eq('id', tenant.room_id)
           .single()
 
+        if (roomErr) throw roomErr
         if (room) setRoomNumber(room.room_number)
 
-        const { data: mr } = await supabase
+        const { data: mr, error: mrErr } = await supabase
           .from('meter_readings')
           .select('id, billing_month, previous_reading, current_reading, units_used')
           .eq('room_id', tenant.room_id)
           .order('billing_month', { ascending: false })
           .limit(6)
 
+        if (mrErr) throw mrErr
         setMeters(mr || [])
       }
 
       const thisMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
 
-      const { data: thisMonthBill } = await supabase
+      const { data: thisMonthBill, error: thisMonthBillErr } = await supabase
         .from('bills')
         .select('*')
         .eq('tenant_id', tenant.id)
         .eq('billing_month', thisMonth)
         .maybeSingle()
 
-      const { data: allBills } = await supabase
-        .from('bills')
-        .select(
-          'id, billing_month, rent_amount, electricity_units, electricity_rate, electricity_amount, amount_paid, remaining_due, status, total_bill, previous_due'
-        )
-        .eq('tenant_id', tenant.id)
-        .order('billing_month', { ascending: false })
-        .limit(12)
+      if (thisMonthBillErr) throw thisMonthBillErr
 
-      // Total Outstanding = latest bill remaining_due only (avoids double counting previous_due)
-      const latestBill = (allBills && allBills[0]) || null
-      const outstandingTotal = Math.max(0, Number(latestBill?.remaining_due ?? 0))
+      const allBillsList: BillHistory[] = []
+      const pageSize = 100
+      let from = 0
+
+      while (true) {
+        const { data: batch, error: billsErr } = await supabase
+          .from('bills')
+          .select(
+            'id, billing_month, rent_amount, electricity_units, electricity_rate, electricity_amount, amount_paid, remaining_due, status, total_bill, previous_due'
+          )
+          .eq('tenant_id', tenant.id)
+          .order('billing_month', { ascending: false })
+          .range(from, from + pageSize - 1)
+
+        if (billsErr) throw billsErr
+
+        const rows = (batch || []) as BillHistory[]
+        allBillsList.push(...rows)
+
+        if (rows.length < pageSize) break
+        from += pageSize
+      }
+
+      const latestBill = allBillsList[0] || null
+      const outstandingTotal = calculateTotalOutstanding(allBillsList)
       const monthDue = thisMonthBill
         ? Math.max(0, Number(thisMonthBill.remaining_due ?? 0))
         : 0
 
       setTotalOutstanding(outstandingTotal)
       setCurrentMonthDue(monthDue)
-      setBillHistory(allBills || [])
+      setBillHistory(allBillsList)
       setBill(thisMonthBill || latestBill || null)
 
-      const { data: pays } = await supabase
+      const { data: pays, error: paysErr } = await supabase
         .from('payments')
         .select('*')
         .eq('tenant_id', tenant.id)
         .order('payment_date', { ascending: false })
         .limit(30)
 
+      if (paysErr) throw paysErr
       setPayments(pays || [])
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'ডেটা লোড করতে সমস্যা হয়েছে'
@@ -227,17 +285,6 @@ export default function TenantDashboard() {
       </div>
     )
   }
-
-  const latestBillRecord = billHistory[0] || bill
-  const latestBillPaidAmount = Number(latestBillRecord?.amount_paid ?? 0)
-  const hasAnyPayment = latestBillPaidAmount > 0 || payments.length > 0
-
-  const billStatus: 'Paid' | 'Partial' | 'Due' =
-    totalOutstanding <= 0
-      ? 'Paid'
-      : hasAnyPayment
-      ? 'Partial'
-      : 'Due'
 
   const importantNotices = notices.filter((n) => n.is_important)
   const previewNotices = [
@@ -464,12 +511,22 @@ export default function TenantDashboard() {
             )}
           </div>
 
-          <div className="sum-card blue">
-            <div className="label">Bill Status</div>
-            <div className="value" style={{ fontSize: '1rem' }}>
-              {billStatus}
+          {deposit != null ? (
+            <div className="sum-card blue">
+              <div className="label">Deposit</div>
+              <div className="value">৳{fmtBDT(deposit)}</div>
             </div>
-          </div>
+          ) : (
+            <div className="sum-card blue">
+              <div className="label">Bill Status</div>
+              <div
+                className="value"
+                style={{ fontSize: '1rem', textTransform: 'capitalize' }}
+              >
+                {bill?.status || '—'}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Payment Information */}
@@ -804,3 +861,4 @@ export default function TenantDashboard() {
     </div>
   )
 }
+```[cite: 54]
