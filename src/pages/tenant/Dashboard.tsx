@@ -242,7 +242,7 @@ export default function TenantDashboard() {
 
   return (
     <div>
-    <div>
+    
       <div className="tenant-page-heading">
         <div>
           <h1>স্বাগতম, {profile?.full_name || 'Tenant'}!</h1>
