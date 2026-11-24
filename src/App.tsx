@@ -20,6 +20,7 @@ import PaymentReceipts from './pages/admin/PaymentReceipts'
 // Tenant Pages
 import TenantDashboard from './pages/tenant/Dashboard'
 import TenantBills from './pages/tenant/Bills'
+import TenantElectricityUsage from './pages/tenant/ElectricityUsage'
 import TenantPayments from './pages/tenant/Payments'
 import TenantPaymentReceipts from './pages/tenant/PaymentReceipts'
 import TenantProfile from './pages/tenant/Profile'
@@ -87,6 +88,7 @@ export default function App() {
           >
             <Route index element={<TenantDashboard />} />
             <Route path="bills" element={<TenantBills />} />
+            <Route path="electricity" element={<TenantElectricityUsage />} />
             <Route path="payments" element={<TenantPayments />} />
             <Route path="receipts" element={<TenantPaymentReceipts />} />
             <Route path="profile" element={<TenantProfile />} />
