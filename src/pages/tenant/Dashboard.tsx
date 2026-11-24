@@ -48,7 +48,6 @@ export default function TenantDashboard() {
   const [payments, setPayments] = useState<Payment[]>([])
   const [meters, setMeters] = useState<MeterRow[]>([])
   const [roomNumber, setRoomNumber] = useState('')
-  const [deposit, setDeposit] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [bkash, setBkash] = useState('')
@@ -95,7 +94,7 @@ export default function TenantDashboard() {
 
       const { data: tenant, error: tErr } = await supabase
         .from('tenants')
-        .select('id, room_id, full_name, deposit')
+        .select('id, room_id, full_name')
         .eq('user_id', uid)
         .eq('active', true)
         .maybeSingle()
@@ -103,10 +102,6 @@ export default function TenantDashboard() {
       if (tErr || !tenant) {
         setError('আপনার টেন্যান্ট অ্যাকাউন্ট লিংক করা হয়নি। অ্যাডমিনের সাথে যোগাযোগ করুন।')
         return
-      }
-
-      if (tenant.deposit != null) {
-        setDeposit(Number(tenant.deposit))
       }
 
       const { data: noticeData } = await supabase
@@ -232,6 +227,17 @@ export default function TenantDashboard() {
       </div>
     )
   }
+
+  const latestBillRecord = billHistory[0] || bill
+  const latestBillPaidAmount = Number(latestBillRecord?.amount_paid ?? 0)
+  const hasAnyPayment = latestBillPaidAmount > 0 || payments.length > 0
+
+  const billStatus: 'Paid' | 'Partial' | 'Due' =
+    totalOutstanding <= 0
+      ? 'Paid'
+      : hasAnyPayment
+      ? 'Partial'
+      : 'Due'
 
   const importantNotices = notices.filter((n) => n.is_important)
   const previewNotices = [
@@ -458,22 +464,12 @@ export default function TenantDashboard() {
             )}
           </div>
 
-          {deposit != null ? (
-            <div className="sum-card blue">
-              <div className="label">Deposit</div>
-              <div className="value">৳{fmtBDT(deposit)}</div>
+          <div className="sum-card blue">
+            <div className="label">Bill Status</div>
+            <div className="value" style={{ fontSize: '1rem' }}>
+              {billStatus}
             </div>
-          ) : (
-            <div className="sum-card blue">
-              <div className="label">Bill Status</div>
-              <div
-                className="value"
-                style={{ fontSize: '1rem', textTransform: 'capitalize' }}
-              >
-                {bill?.status || '—'}
-              </div>
-            </div>
-          )}
+          </div>
         </div>
 
         {/* Payment Information */}
