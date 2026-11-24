@@ -44,6 +44,7 @@ export default function TenantDashboard() {
   const [bill, setBill] = useState<Bill | null>(null)
   const [billHistory, setBillHistory] = useState<BillHistory[]>([])
   const [totalOutstanding, setTotalOutstanding] = useState(0)
+  const [currentMonthDue, setCurrentMonthDue] = useState(0)
   const [payments, setPayments] = useState<Payment[]>([])
   const [meters, setMeters] = useState<MeterRow[]>([])
   const [roomNumber, setRoomNumber] = useState('')
@@ -163,21 +164,18 @@ export default function TenantDashboard() {
         .order('billing_month', { ascending: false })
         .limit(12)
 
-      const { data: outstandingBills, error: outstandingError } = await supabase
-        .from('bills')
-        .select('remaining_due')
-        .eq('tenant_id', tenant.id)
-
-      if (outstandingError) throw outstandingError
-
-      const outstandingTotal = (outstandingBills || []).reduce(
-        (sum, item) => sum + Math.max(0, Number(item.remaining_due || 0)),
-        0
-      )
+      // Total Outstanding = latest bill remaining_due only
+      // (previous months' dues are already carried in previous_due — do NOT sum all remaining_due)
+      const latestBill = (allBills && allBills[0]) || null
+      const outstandingTotal = Math.max(0, Number(latestBill?.remaining_due ?? 0))
+      const monthDue = thisMonthBill
+        ? Math.max(0, Number(thisMonthBill.remaining_due ?? 0))
+        : 0
 
       setTotalOutstanding(outstandingTotal)
+      setCurrentMonthDue(monthDue)
       setBillHistory(allBills || [])
-      setBill(thisMonthBill || (allBills && allBills[0]) || null)
+      setBill(thisMonthBill || latestBill || null)
 
       const { data: pays } = await supabase
         .from('payments')
@@ -244,7 +242,6 @@ export default function TenantDashboard() {
 
   return (
     <div>
-                  return (
     <div>
       <div className="tenant-page-heading">
         <div>
@@ -442,31 +439,45 @@ export default function TenantDashboard() {
         {/* Summary Cards */}
         <div className="grid-2" style={{ marginBottom: 18 }}>
           <div className="sum-card due">
-            <div className="label">Outstanding</div>
+            <div className="label">Total Outstanding</div>
             <div className="value">৳{fmtBDT(totalOutstanding)}</div>
           </div>
 
-          <div className="sum-card green">
-            <div className="label">Paid (Selected Bill)</div>
-            <div className="value">৳{fmtBDT(bill?.amount_paid ?? 0)}</div>
+          <div className="sum-card orange">
+            <div className="label">Current Month Due</div>
+            <div className="value">৳{fmtBDT(currentMonthDue)}</div>
           </div>
 
-          {deposit != null && (
+          <div className="sum-card green">
+            <div className="label">Last Payment</div>
+            <div className="value" style={{ fontSize: payments[0] ? '1.05rem' : '1rem' }}>
+              {payments[0]
+                ? `৳${fmtBDT(payments[0].amount)}`
+                : '—'}
+            </div>
+            {payments[0] && (
+              <div style={{ fontSize: '0.72rem', color: 'var(--muted)', marginTop: 4 }}>
+                {payments[0].payment_date}
+              </div>
+            )}
+          </div>
+
+          {deposit != null ? (
             <div className="sum-card blue">
               <div className="label">Deposit</div>
               <div className="value">৳{fmtBDT(deposit)}</div>
             </div>
-          )}
-
-          <div className="sum-card orange">
-            <div className="label">Bill Status</div>
-            <div
-              className="value"
-              style={{ fontSize: '1rem', textTransform: 'capitalize' }}
-            >
-              {bill?.status || '—'}
+          ) : (
+            <div className="sum-card blue">
+              <div className="label">Bill Status</div>
+              <div
+                className="value"
+                style={{ fontSize: '1rem', textTransform: 'capitalize' }}
+              >
+                {bill?.status || '—'}
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
         {/* Payment Information */}
