@@ -145,7 +145,6 @@ export default function TenantDashboard() {
         setMeters(mr || [])
       }
 
-      // Current month bill (reuse now from notices filter above)
       const thisMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
 
       const { data: thisMonthBill } = await supabase
@@ -164,8 +163,7 @@ export default function TenantDashboard() {
         .order('billing_month', { ascending: false })
         .limit(12)
 
-      // Total Outstanding = latest bill remaining_due only
-      // (previous months' dues are already carried in previous_due — do NOT sum all remaining_due)
+      // Total Outstanding = latest bill remaining_due only (avoids double counting previous_due)
       const latestBill = (allBills && allBills[0]) || null
       const outstandingTotal = Math.max(0, Number(latestBill?.remaining_due ?? 0))
       const monthDue = thisMonthBill
@@ -185,8 +183,9 @@ export default function TenantDashboard() {
         .limit(30)
 
       setPayments(pays || [])
-    } catch (e: any) {
-      setError(e.message || 'ডেটা লোড করতে সমস্যা হয়েছে')
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'ডেটা লোড করতে সমস্যা হয়েছে'
+      setError(msg)
     } finally {
       setLoading(false)
     }
@@ -242,7 +241,6 @@ export default function TenantDashboard() {
 
   return (
     <div>
-    
       <div className="tenant-page-heading">
         <div>
           <h1>স্বাগতম, {profile?.full_name || 'Tenant'}!</h1>
@@ -261,7 +259,7 @@ export default function TenantDashboard() {
           </div>
         )}
 
-        {/* Important Notice */}
+        {/* Notice Board */}
         <div className="card tenant-notice-highlight" style={{ marginBottom: 18 }}>
           <div className="tenant-section-heading">
             <div>
@@ -451,9 +449,7 @@ export default function TenantDashboard() {
           <div className="sum-card green">
             <div className="label">Last Payment</div>
             <div className="value" style={{ fontSize: payments[0] ? '1.05rem' : '1rem' }}>
-              {payments[0]
-                ? `৳${fmtBDT(payments[0].amount)}`
-                : '—'}
+              {payments[0] ? `৳${fmtBDT(payments[0].amount)}` : '—'}
             </div>
             {payments[0] && (
               <div style={{ fontSize: '0.72rem', color: 'var(--muted)', marginTop: 4 }}>
