@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
@@ -10,6 +9,7 @@ const menuGroups = [
     items: [
       { label: 'Dashboard', path: '/tenant', icon: '⌂', end: true },
       { label: 'My Bills', path: '/tenant/bills', icon: '▤' },
+      { label: 'Electricity Usage', path: '/tenant/electricity', icon: '⚡' },
       { label: 'Payment History', path: '/tenant/payments', icon: '↔' },
       { label: 'Payment Receipts', path: '/tenant/receipts', icon: '▧' },
       { label: 'My Profile', path: '/tenant/profile', icon: '♙' },
@@ -180,3 +180,4 @@ export default function TenantShell() {
     </div>
   )
 }
+```[cite: 1]
